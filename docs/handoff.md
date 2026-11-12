@@ -14,6 +14,7 @@
 |---|---|
 | `docs/specs/2026-11-12-nl-alimtalk-template-design.md` | 설계 문서(승인됨, 이후 변경 반영) |
 | `docs/plans/2026-11-12-nl-alimtalk-template.md` | 구현 계획(Task 1~8) |
+| `docs/run-guide.md` | 실행 가이드(키 설정→서버 실행, 테스트, 에러 확인, 자연어 테스트 케이스) |
 | `src/main/resources/rules/alimtalk-rules.json` | 규칙 수치(코드 점검용), `GET /api/rules`로 화면에도 제공 |
 | `src/main/resources/rules/alimtalk-review-guide.md` | Claude 생성 지침(카카오 심사 가이드 요약) |
 | `src/main/java/com/alimtalk/` | `rules/`(규칙 로드·점검), `llm/`(Claude 연동·프롬프트·가짜 LLM), `template/`(생성 서비스·API) |
@@ -23,7 +24,8 @@
 | `.superpowers/sdd/2026-11-12-nl-alimtalk-template/` | 구현 진행 기록(ledger). git 제외 |
 
 ### 실행 방법
-- 실제 Claude: `export ANTHROPIC_API_KEY=...` 후 `./gradlew bootRun` → http://localhost:8080
+- 상세 명령·에러 확인·자연어 테스트 케이스: **`docs/run-guide.md`**
+- 실제 Claude: 같은 터미널에서 `read -s ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY`(키 붙여넣기) 후 `./gradlew bootRun 2>&1 | tee build/live-run.log` → http://localhost:8080. 새 창마다 키 재입력
 - 가짜 LLM: `SPRING_PROFILES_ACTIVE=fake-llm ./gradlew bootRun` (요청에 "위반"→규칙 위반, "광고"→거절, 그 외→주문완료 고정 응답)
 - 화면 점검: `SPRING_PROFILES_ACTIVE=fake-llm ./gradlew bootRun --args='--server.port=8081'` 후 `src/test/ui/verify.sh`
 - 테스트: `./gradlew test` / 실제 호출 테스트: `LIVE_LLM_TEST=true ./gradlew test --tests '*ClaudeLlmClientLiveTest'`(비용 발생)
@@ -65,7 +67,7 @@
 - `CLAUDE.md` 섹션 1·2 작성 시점
 
 ## 다음 작업
-1. Task 8: 사용자 API 키로 실제 Claude 호출 확인(응답 시간·재시도 횟수·토큰/캐시 사용량 기록, effort 조정 판단) — **보류: 사용자 API 키 발급 대기(2026-11-12)**
+1. Task 8: 사용자 API 키로 실제 Claude 호출 확인(응답 시간·재시도 횟수·토큰/캐시 사용량 기록, effort 조정 판단) — **진행 중: 키 발급 완료(2026-11-12), 첫 시도에서 화면 생성 오류 → 키를 넣은 같은 창에서 서버 재실행 후 `build/live-run.log`로 원인 확인 예정**
    - 진행 순서: 별도 터미널에서 `read -s ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY` 후 키 붙여넣기(셸 히스토리에 남지 않음. `export ANTHROPIC_API_KEY=키` 형태로 입력하면 `~/.zsh_history`에 저장되므로 쓰지 않는다. 대화창·`!` 명령에 키 입력 금지) → `LIVE_LLM_TEST=true ./gradlew test --tests '*ClaudeLlmClientLiveTest'` → `./gradlew bootRun 2>&1 | tee build/live-run.log` 후 화면에서 5개 문장 확인(주문/배송/인증/할인 홍보(거절)/"세팅해줘"(불명확)) → `build/live-run.log`의 `LLM usage` 줄로 토큰·캐시 분석
 2. 남은 보류 지적 2건(이전 버전 저장값 때문의 불필요한 확인 창, 저장 데이터 일부 손상 시 보정) 처리 여부 결정
 3. 브랜치를 main에 합칠지 결정
@@ -80,3 +82,4 @@
 - 2026-11-12: 보류 지적 중 사용자 선택 항목 처리 — 덮어쓰기 취소 시 결과 보관, 자연어 글자 수 기준, 특수문자 변수명, 유형 값 enum 강제, 채널 값 제한, API 키 없을 때 경고·502 통일. 화면 점검 도구를 `src/test/ui/`로 옮기고 test 에이전트 지침 연결. 커밋 메시지는 한국어로 작성(사용자 요청).
 - 2026-11-12: CLAUDE.md에 "커밋 메시지는 한국어" 규칙 추가. Task 8은 API 키 발급 대기로 보류.
 - 2026-11-12: 사용자 API 키 발급 완료. 처음 `export`로 입력해 셸 히스토리에 남았을 수 있어 사용자가 직접 히스토리 정리(사용자 결정, 키 재발급은 안 함). Task 8 진행 순서를 `read -s` 방식으로 변경.
+- 2026-11-13: 실행 가이드 `docs/run-guide.md` 작성(키 설정→서버 실행, 테스트, 에러 확인, 자연어 테스트 케이스 15개). handoff 실행 방법을 `read -s` 방식으로 수정. 키 관리 방식(키체인 등)은 사용자가 나중에 결정.
