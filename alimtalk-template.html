@@ -1,0 +1,590 @@
+<title>알림톡 템플릿 등록</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 왼쪽 입력 폼(스크롤) + 오른쪽 고정 미리보기(휴대폰 대화방). 좁은 화면에서는 위아래로 쌓임 */
+:root{
+  --bg:#f3f4f7; --surface:#ffffff; --surface-2:#f7f8fb; --line:#dfe2ea; --line-strong:#c6cad6;
+  --fg:#1d2230; --fg-2:#5b6274; --fg-3:#8a90a0;
+  --accent:#2f4fd8; --accent-soft:#e8ecfd; --accent-fg:#ffffff;
+  --ok:#1f8a5b; --ok-soft:#e3f4ec; --warn:#b26a00; --warn-soft:#fdf1dd; --err:#c8323b; --err-soft:#fbe6e7;
+  --var-bg:#fff1b8; --var-fg:#6b4d00;
+  --chat-bg:#b9cadb; --chat-head:#a9bccf; --bubble:#ffffff; --bubble-fg:#191919; --bubble-sub:#8a8a8a;
+  --bubble-btn:#f2f3f5; --kakao:#fee500; --kakao-fg:#191919; --phone-frame:#1d2230;
+  --font-ui:"IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12151d; --surface:#1a1e29; --surface-2:#202533; --line:#2c3243; --line-strong:#3c4358;
+  --fg:#e7e9f0; --fg-2:#a6acbd; --fg-3:#767d91;
+  --accent:#7d93ff; --accent-soft:#252c4d; --accent-fg:#0e1220;
+  --ok:#4cc58d; --ok-soft:#173327; --warn:#e3a443; --warn-soft:#3a2c14; --err:#f0727a; --err-soft:#3d1c20;
+  --var-bg:#4a3c08; --var-fg:#ffe48a;
+  --chat-bg:#2c3a49; --chat-head:#263341; --bubble:#2b2f38; --bubble-fg:#ececec; --bubble-sub:#9a9fa9;
+  --bubble-btn:#363b46; --phone-frame:#05070b; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#12151d; --surface:#1a1e29; --surface-2:#202533; --line:#2c3243; --line-strong:#3c4358;
+  --fg:#e7e9f0; --fg-2:#a6acbd; --fg-3:#767d91;
+  --accent:#7d93ff; --accent-soft:#252c4d; --accent-fg:#0e1220;
+  --ok:#4cc58d; --ok-soft:#173327; --warn:#e3a443; --warn-soft:#3a2c14; --err:#f0727a; --err-soft:#3d1c20;
+  --var-bg:#4a3c08; --var-fg:#ffe48a;
+  --chat-bg:#2c3a49; --chat-head:#263341; --bubble:#2b2f38; --bubble-fg:#ececec; --bubble-sub:#9a9fa9;
+  --bubble-btn:#363b46; --phone-frame:#05070b; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:14px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 48px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.crumb{font-size:12px;color:var(--fg-3);letter-spacing:.02em}
+h1{margin:2px 0 0;font-size:22px;font-weight:700;text-wrap:balance}
+.mode-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:999px;background:var(--warn-soft);color:var(--warn);font-weight:600}
+.mode-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:24px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+
+.form{display:flex;flex-direction:column;gap:16px;min-width:0}
+section.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px;display:flex;flex-direction:column;gap:16px}
+section.card > h2{margin:0;font-size:15px;font-weight:700;display:flex;align-items:baseline;gap:8px}
+section.card > h2 small{font-weight:400;color:var(--fg-3);font-size:12px}
+.row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:560px){.row{grid-template-columns:minmax(0,1fr)}}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field > label, .lbl{font-size:13px;font-weight:600;color:var(--fg)}
+.req::after{content:" *";color:var(--err)}
+.hint{font-size:12px;color:var(--fg-3)}
+input[type=text],input[type=url],select,textarea{width:100%;font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;padding:9px 11px;transition:border-color .15s, box-shadow .15s}
+textarea{resize:vertical;min-height:180px;font-family:var(--font-ui);line-height:1.6}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.invalid{border-color:var(--err)!important}
+.counter{font-size:12px;color:var(--fg-3);font-variant-numeric:tabular-nums;text-align:right}
+.counter.over{color:var(--err);font-weight:600}
+.field-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+
+/* segmented choices */
+.seg{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.seg label{position:relative;display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:6px;cursor:pointer;background:var(--surface)}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg b{font-size:13px}
+.seg span{font-size:11px;color:var(--fg-3)}
+.seg label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.seg label:has(input:focus-visible){box-shadow:0 0 0 3px var(--accent-soft)}
+
+.toolbar{display:flex;flex-wrap:wrap;gap:6px}
+.chip-btn{font:inherit;font-size:12px;padding:4px 10px;border-radius:999px;border:1px dashed var(--line-strong);background:var(--surface-2);color:var(--fg-2);cursor:pointer}
+.chip-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+.vars{display:flex;flex-direction:column;gap:8px}
+.var-row{display:grid;grid-template-columns:minmax(0,160px) minmax(0,1fr);gap:10px;align-items:center}
+.var-tag{font-family:var(--font-mono);font-size:12px;background:var(--var-bg);color:var(--var-fg);padding:3px 8px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty{font-size:12px;color:var(--fg-3);padding:10px 12px;border:1px dashed var(--line);border-radius:6px}
+
+.btn-list{display:flex;flex-direction:column;gap:10px}
+.btn-item{border:1px solid var(--line);border-radius:6px;padding:12px;display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:10px;align-items:start;background:var(--surface-2)}
+.btn-item .ord{font-family:var(--font-mono);font-size:12px;color:var(--fg-3);padding-top:9px;text-align:center}
+.btn-item .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media (max-width:560px){.btn-item .fields{grid-template-columns:minmax(0,1fr)}}
+.btn-item .full{grid-column:1/-1}
+.icon-btn{font:inherit;border:1px solid var(--line-strong);background:var(--surface);color:var(--fg-2);border-radius:6px;width:32px;height:32px;cursor:pointer;display:grid;place-items:center;font-size:16px;line-height:1}
+.icon-btn:hover{color:var(--err);border-color:var(--err)}
+.icon-btn:disabled{opacity:.4;cursor:not-allowed}
+
+button.primary,button.ghost{font:inherit;font-weight:600;border-radius:6px;padding:10px 18px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-fg);border:1px solid var(--accent)}
+button.ghost{background:var(--surface);color:var(--fg);border:1px solid var(--line-strong)}
+button:focus-visible,.chip-btn:focus-visible,.icon-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end}
+
+.switch{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px}
+.switch input{width:16px;height:16px;accent-color:var(--accent)}
+
+/* result */
+.result{display:flex;flex-direction:column;gap:12px}
+.issues{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.issues li{font-size:13px;padding:8px 12px;border-radius:6px;display:flex;gap:8px}
+.issues li.e{background:var(--err-soft);color:var(--err)}
+.issues li.w{background:var(--warn-soft);color:var(--warn)}
+.issues li.ok{background:var(--ok-soft);color:var(--ok)}
+.code-wrap{position:relative;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);overflow-x:auto;max-height:420px}
+pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-height:1.6;color:var(--fg)}
+.code-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+
+/* preview */
+.preview{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);display:flex;flex-direction:column;gap:12px;min-width:0}
+@media (max-width:900px){.preview{position:static}}
+.preview-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.preview-head .lbl{font-size:13px}
+.phone{background:var(--phone-frame);border-radius:28px;padding:10px;max-width:380px;width:100%;margin:0 auto}
+.screen{background:var(--chat-bg);border-radius:20px;overflow:hidden;display:flex;flex-direction:column;height:640px}
+@media (max-width:900px){.screen{height:auto;min-height:420px}}
+.chat-top{background:var(--chat-head);padding:12px 14px;display:flex;align-items:center;gap:8px;color:var(--bubble-fg);font-weight:600;font-size:14px}
+.chat-top .back{opacity:.6}
+.chat-body{flex:1;overflow-y:auto;padding:16px 12px 24px;display:flex;flex-direction:column;gap:6px}
+.msg{display:grid;grid-template-columns:38px minmax(0,1fr);gap:8px}
+.avatar{width:38px;height:38px;border-radius:14px;background:var(--kakao);display:grid;place-items:center;font-weight:700;font-size:13px;color:var(--kakao-fg)}
+.sender{font-size:12px;color:var(--bubble-fg);opacity:.8;margin-bottom:4px}
+.bubble-line{display:flex;align-items:flex-end;gap:6px}
+.bubble{width:100%;max-width:256px;background:var(--bubble);color:var(--bubble-fg);border-radius:4px 12px 12px 12px;overflow:hidden;font-size:13px}
+.bubble .band{background:var(--kakao);color:var(--kakao-fg);font-size:12.5px;font-weight:600;padding:9px 12px;display:flex;align-items:center;gap:6px}
+.bubble .band svg{flex:none}
+.bubble img.hero{display:block;width:100%;aspect-ratio:2/1;object-fit:cover;max-width:100%}
+.bubble .img-ph{aspect-ratio:2/1;display:grid;place-items:center;font-size:11px;color:var(--bubble-sub);background:var(--bubble-btn)}
+.bubble .inner{padding:14px 12px 12px;display:flex;flex-direction:column;gap:10px}
+.emph{display:flex;flex-direction:column;gap:2px;padding-bottom:10px;border-bottom:1px solid color-mix(in srgb,var(--bubble-sub) 30%,transparent)}
+.emph .sub{font-size:12px;color:var(--bubble-sub)}
+.emph .ttl{font-size:19px;font-weight:700;line-height:1.3;word-break:break-all}
+.content{white-space:pre-wrap;word-break:break-all;line-height:1.6}
+.extra{white-space:pre-wrap;word-break:break-all;font-size:12px;color:var(--bubble-sub);line-height:1.55}
+.ad{font-size:12px;color:var(--bubble-sub)}
+.vtag{background:var(--var-bg);color:var(--var-fg);border-radius:3px;padding:0 2px}
+.vfill{border-bottom:1px dashed var(--bubble-sub)}
+.pbtns{display:flex;flex-direction:column;gap:6px}
+.pbtn{background:var(--bubble-btn);border-radius:6px;text-align:center;padding:9px 8px;font-size:13px;font-weight:500}
+.time{font-size:10px;color:var(--bubble-fg);opacity:.6;white-space:nowrap;flex:none}
+.placeholder{color:var(--bubble-sub)}
+.legend{font-size:12px;color:var(--fg-3);display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.sw{width:10px;height:10px;border-radius:2px;background:var(--var-bg);border:1px solid var(--var-fg)}
+
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:13px;font-weight:500;z-index:20}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="crumb">비즈메시지 › 알림톡 › 템플릿</div>
+      <h1>알림톡 템플릿 등록</h1>
+    </div>
+    <span class="mode-pill" title="딜러사 API를 호출하지 않고 요청 데이터만 만듭니다">로컬 Dry-run 모드</span>
+  </header>
+
+  <div class="grid">
+    <form class="form" id="form" novalidate>
+      <section class="card">
+        <h2>기본 정보</h2>
+        <div class="row">
+          <div class="field">
+            <label for="channel" class="req">발신 프로필(채널)</label>
+            <select id="channel">
+              <option value="@mystore" data-name="마이스토어">@mystore · 마이스토어</option>
+              <option value="@hotvpn" data-name="HotVPN">@hotvpn · HotVPN</option>
+              <option value="@testchannel" data-name="테스트채널">@testchannel · 테스트채널</option>
+            </select>
+            <span class="hint">예시 채널입니다. 실제로는 딜러사에 연동된 senderKey 목록이 들어옵니다.</span>
+          </div>
+          <div class="field">
+            <label for="category" class="req">카테고리</label>
+            <select id="category">
+              <option value="002001">구매 · 구매완료</option>
+              <option value="002002">구매 · 구매취소</option>
+              <option value="003001">배송 · 배송상태</option>
+              <option value="004001">예약 · 예약완료</option>
+              <option value="006001">회원 · 회원가입</option>
+              <option value="006003">회원 · 인증</option>
+              <option value="999999">기타</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <div class="field-head"><label for="tplName" class="req">템플릿 이름</label><span class="counter" id="cntName"></span></div>
+            <input type="text" id="tplName" maxlength="40">
+          </div>
+          <div class="field">
+            <div class="field-head"><label for="tplCode" class="req">템플릿 코드</label><span class="counter" id="cntCode"></span></div>
+            <input type="text" id="tplCode" maxlength="30" spellcheck="false" style="font-family:var(--font-mono)">
+            <span class="hint">영문·숫자·_ 만 사용, 최대 30자</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>메시지 유형</h2>
+        <div class="seg" role="radiogroup" aria-label="메시지 유형">
+          <label><input type="radio" name="msgType" value="BA" checked><b>기본형</b><span>본문만</span></label>
+          <label><input type="radio" name="msgType" value="EX"><b>부가정보형</b><span>본문 + 부가정보</span></label>
+          <label><input type="radio" name="msgType" value="AD"><b>채널추가형</b><span>본문 + 채널추가</span></label>
+          <label><input type="radio" name="msgType" value="MI"><b>복합형</b><span>부가정보 + 채널추가</span></label>
+        </div>
+        <div class="lbl">강조 유형</div>
+        <div class="seg" role="radiogroup" aria-label="강조 유형">
+          <label><input type="radio" name="emph" value="NONE" checked><b>선택 안 함</b><span>일반 본문</span></label>
+          <label><input type="radio" name="emph" value="TEXT"><b>강조 표기형</b><span>큰 제목 + 보조 문구</span></label>
+          <label><input type="radio" name="emph" value="IMAGE"><b>이미지형</b><span>상단 이미지 2:1</span></label>
+        </div>
+        <div class="row" id="emphText" hidden>
+          <div class="field">
+            <div class="field-head"><label for="emTitle" class="req">강조 제목</label><span class="counter" id="cntTitle"></span></div>
+            <input type="text" id="emTitle">
+          </div>
+          <div class="field">
+            <div class="field-head"><label for="emSub" class="req">보조 문구</label><span class="counter" id="cntSub"></span></div>
+            <input type="text" id="emSub">
+          </div>
+        </div>
+        <div class="field" id="emphImage" hidden>
+          <label for="emImg" class="req">이미지</label>
+          <input type="file" id="emImg" accept="image/png,image/jpeg">
+          <span class="hint">권장 800×400px, JPG·PNG, 500KB 이하. 실제 등록 시 딜러사에 먼저 업로드해 URL을 받습니다.</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>본문 <small>변수는 #{변수명} 형식</small></h2>
+        <div class="field">
+          <div class="field-head"><label for="content" class="req">템플릿 내용</label><span class="counter" id="cntContent"></span></div>
+          <textarea id="content" rows="10"></textarea>
+          <div class="toolbar" aria-label="자주 쓰는 변수 삽입">
+            <button type="button" class="chip-btn" data-ins="#{고객명}">+ 고객명</button>
+            <button type="button" class="chip-btn" data-ins="#{주문번호}">+ 주문번호</button>
+            <button type="button" class="chip-btn" data-ins="#{상품명}">+ 상품명</button>
+            <button type="button" class="chip-btn" data-ins="#{결제금액}">+ 결제금액</button>
+            <button type="button" class="chip-btn" data-ins="#{날짜}">+ 날짜</button>
+            <button type="button" class="chip-btn" data-ins="#{인증번호}">+ 인증번호</button>
+          </div>
+        </div>
+        <div class="field" id="extraWrap" hidden>
+          <div class="field-head"><label for="extra" class="req">부가 정보</label><span class="counter" id="cntExtra"></span></div>
+          <textarea id="extra" rows="3" style="min-height:80px"></textarea>
+          <span class="hint">변수 사용 불가. 고객센터 안내, 유의사항 같은 고정 문구에 씁니다.</span>
+        </div>
+        <div class="field">
+          <div class="lbl">변수 예시값 <span class="hint" id="varCount"></span></div>
+          <div class="vars" id="vars"></div>
+        </div>
+        <label class="switch"><input type="checkbox" id="security"> 보안 템플릿 (인증번호 등, PC 카카오톡에서는 내용이 가려짐)</label>
+      </section>
+
+      <section class="card">
+        <h2>버튼 <small id="btnCount"></small></h2>
+        <div class="btn-list" id="btnList"></div>
+        <div class="toolbar">
+          <button type="button" class="chip-btn" id="addBtn">+ 버튼 추가</button>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button type="button" class="ghost" id="resetBtn">예시로 초기화</button>
+        <button type="submit" class="primary">검수 요청 데이터 생성</button>
+      </div>
+
+      <section class="card result" id="result" hidden>
+        <h2>검증 결과</h2>
+        <ul class="issues" id="issues"></ul>
+        <div class="code-head">
+          <span class="lbl">요청 페이로드 <span class="hint">(카카오 비즈메시지 템플릿 등록 필드 기준 · 딜러사마다 필드명이 다를 수 있음)</span></span>
+          <button type="button" class="chip-btn" id="copyBtn">복사</button>
+        </div>
+        <div class="code-wrap"><pre class="code" id="payload"></pre></div>
+      </section>
+    </form>
+
+    <aside class="preview" aria-label="미리보기">
+      <div class="preview-head">
+        <span class="lbl" style="font-weight:600">미리보기</span>
+        <label class="switch"><input type="checkbox" id="showSample" checked> 예시값 적용</label>
+      </div>
+      <div class="phone">
+        <div class="screen">
+          <div class="chat-top"><span class="back">‹</span><span id="pvChannel">마이스토어</span></div>
+          <div class="chat-body">
+            <div class="msg">
+              <div class="avatar" id="pvAvatar">마</div>
+              <div>
+                <div class="sender" id="pvSender">마이스토어</div>
+                <div class="bubble-line">
+                  <div class="bubble" id="pvBubble"></div>
+                  <span class="time" id="pvTime"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="legend"><span><i class="sw"></i>변수 (예시값 미입력)</span><span><i class="sw" style="background:transparent;border-style:dashed"></i>예시값으로 치환됨</span></div>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const LIMIT = { name: 40, code: 30, content: 1000, extra: 500, title: 50, sub: 50, btnName: 14, buttons: 5, vars: 40 };
+  const AD_TEXT = "채널 추가하고 이 채널의 광고와 마케팅 메시지를 카카오톡으로 받기";
+  const BTN_TYPES = { WL: "웹링크", AL: "앱링크", DS: "배송조회", BK: "봇키워드", MD: "메시지전달" };
+  const STORE_KEY = "alimtalk-tpl-draft-v1";
+
+  const SAMPLE = {
+    channel: "@mystore", category: "002001",
+    name: "주문 완료 안내", code: "ORDER_COMPLETE_01",
+    msgType: "EX", emph: "TEXT",
+    title: "#{결제금액}원", sub: "결제가 완료되었습니다",
+    content: "#{고객명}님, 주문이 정상적으로 접수되었습니다.\n\n▶ 주문번호: #{주문번호}\n▶ 상품명: #{상품명}\n▶ 주문일시: #{날짜}\n\n상품 준비가 끝나면 배송 시작 알림을 다시 보내드릴게요.",
+    extra: "문의: 고객센터 1588-0000 (평일 10:00~18:00)",
+    security: false,
+    samples: { "고객명": "김현기", "주문번호": "20261110-0042", "상품명": "무선 기계식 키보드 외 1건", "날짜": "2026-11-10 07:55", "결제금액": "129,000" },
+    buttons: [
+      { type: "WL", name: "주문 상세 보기", mo: "https://mystore.example.com/orders/#{주문번호}", pc: "" },
+      { type: "DS", name: "배송 조회", mo: "", pc: "" }
+    ]
+  };
+
+  let state = load() || structuredClone(SAMPLE);
+  let imageData = null;
+
+  function load(){ try{ const s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : null; }catch(e){ return null; } }
+  function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} }
+
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+  const VAR_RE = /#\{([^{}]*)\}/g;
+  const varsIn = (s) => [...String(s || "").matchAll(VAR_RE)].map(m => m[1]);
+
+  function allVars(){
+    const seen = new Set(), list = [];
+    const srcs = [state.content];
+    if (state.emph === "TEXT") srcs.unshift(state.title, state.sub);
+    state.buttons.forEach(b => srcs.push(b.mo, b.pc));
+    srcs.forEach(s => varsIn(s).forEach(v => { if (!seen.has(v)) { seen.add(v); list.push(v); } }));
+    return list;
+  }
+
+  function renderText(s){
+    const show = $("showSample").checked;
+    return esc(s).replace(/#\{([^{}]*)\}/g, (m, v) => {
+      const val = state.samples[v];
+      if (show && val) return `<span class="vfill">${esc(val)}</span>`;
+      return `<span class="vtag">#{${v}}</span>`;
+    });
+  }
+
+  /* ---------- form <-> state ---------- */
+  function fillForm(){
+    $("channel").value = state.channel; $("category").value = state.category;
+    $("tplName").value = state.name; $("tplCode").value = state.code;
+    document.querySelector(`input[name=msgType][value=${state.msgType}]`).checked = true;
+    document.querySelector(`input[name=emph][value=${state.emph}]`).checked = true;
+    $("emTitle").value = state.title; $("emSub").value = state.sub;
+    $("content").value = state.content; $("extra").value = state.extra;
+    $("security").checked = state.security;
+    renderButtons();
+  }
+
+  function bind(id, key, ev="input"){ $(id).addEventListener(ev, e => { state[key] = e.target.type === "checkbox" ? e.target.checked : e.target.value; update(); }); }
+  bind("channel","channel","change"); bind("category","category","change");
+  bind("tplName","name"); bind("tplCode","code"); bind("emTitle","title"); bind("emSub","sub");
+  bind("content","content"); bind("extra","extra"); bind("security","security","change");
+  document.querySelectorAll("input[name=msgType]").forEach(r => r.addEventListener("change", e => { state.msgType = e.target.value; update(); }));
+  document.querySelectorAll("input[name=emph]").forEach(r => r.addEventListener("change", e => { state.emph = e.target.value; update(); }));
+  $("showSample").addEventListener("change", renderPreview);
+
+  $("emImg").addEventListener("change", e => {
+    const f = e.target.files[0]; if (!f) { imageData = null; renderPreview(); return; }
+    if (f.size > 500 * 1024) toast("이미지가 500KB를 넘습니다. 실제 검수에서 반려될 수 있어요.");
+    const r = new FileReader(); r.onload = () => { imageData = r.result; renderPreview(); }; r.readAsDataURL(f);
+  });
+
+  document.querySelectorAll("[data-ins]").forEach(b => b.addEventListener("click", () => {
+    const ta = $("content"), t = b.dataset.ins, s = ta.selectionStart, e = ta.selectionEnd;
+    ta.value = ta.value.slice(0, s) + t + ta.value.slice(e);
+    ta.focus(); ta.selectionStart = ta.selectionEnd = s + t.length;
+    state.content = ta.value; update();
+  }));
+
+  /* ---------- buttons ---------- */
+  function needsAC(){ return state.msgType === "AD" || state.msgType === "MI"; }
+  function renderButtons(){
+    const list = $("btnList"); list.innerHTML = "";
+    let ord = 1;
+    if (needsAC()){
+      const d = document.createElement("div"); d.className = "btn-item";
+      d.innerHTML = `<span class="ord">${ord++}</span><div class="fields"><div class="field full"><span class="lbl">채널 추가 (AC)</span><span class="hint">채널추가형·복합형은 첫 번째 버튼이 '채널 추가'로 고정됩니다.</span></div></div><span></span>`;
+      list.appendChild(d);
+    }
+    state.buttons.forEach((b, i) => {
+      const d = document.createElement("div"); d.className = "btn-item";
+      const opts = Object.entries(BTN_TYPES).map(([k,v]) => `<option value="${k}" ${b.type===k?"selected":""}>${v} (${k})</option>`).join("");
+      const linkFields = b.type === "WL" ? `
+          <div class="field"><label class="lbl req" for="bmo${i}">Mobile URL</label><input type="url" id="bmo${i}" data-k="mo" value="${esc(b.mo)}" placeholder="https://"></div>
+          <div class="field"><label class="lbl" for="bpc${i}">PC URL</label><input type="url" id="bpc${i}" data-k="pc" value="${esc(b.pc)}" placeholder="https:// (선택)"></div>`
+        : b.type === "AL" ? `
+          <div class="field"><label class="lbl req" for="bmo${i}">Android scheme</label><input type="text" id="bmo${i}" data-k="mo" value="${esc(b.mo)}" placeholder="myapp://"></div>
+          <div class="field"><label class="lbl req" for="bpc${i}">iOS scheme</label><input type="text" id="bpc${i}" data-k="pc" value="${esc(b.pc)}" placeholder="myapp://"></div>`
+        : b.type === "DS" ? `<div class="field full"><span class="hint">본문에 택배사명과 송장번호가 있으면 카카오가 배송조회 링크를 자동으로 붙입니다.</span></div>` : "";
+      d.innerHTML = `<span class="ord">${ord++}</span>
+        <div class="fields">
+          <div class="field"><label class="lbl" for="bt${i}">유형</label><select id="bt${i}" data-k="type">${opts}</select></div>
+          <div class="field"><div class="field-head"><label class="lbl req" for="bn${i}">버튼명</label><span class="counter ${[...b.name].length>LIMIT.btnName?"over":""}">${[...b.name].length}/${LIMIT.btnName}</span></div><input type="text" id="bn${i}" data-k="name" value="${esc(b.name)}"></div>
+          ${linkFields}
+        </div>
+        <button type="button" class="icon-btn" aria-label="${i+1}번 버튼 삭제" data-del="${i}">×</button>`;
+      d.querySelectorAll("[data-k]").forEach(inp => inp.addEventListener(inp.tagName === "SELECT" ? "change" : "input", e => {
+        b[e.target.dataset.k] = e.target.value;
+        if (e.target.dataset.k === "type"){ b.mo = ""; b.pc = ""; renderButtons(); }
+        else if (e.target.dataset.k === "name"){ const c = d.querySelector(".counter"); const n=[...b.name].length; c.textContent = `${n}/${LIMIT.btnName}`; c.classList.toggle("over", n > LIMIT.btnName); }
+        update(false);
+      }));
+      d.querySelector("[data-del]").addEventListener("click", () => { state.buttons.splice(i,1); renderButtons(); update(false); });
+      list.appendChild(d);
+    });
+    const total = state.buttons.length + (needsAC()?1:0);
+    $("btnCount").textContent = `${total}/${LIMIT.buttons}`;
+    $("addBtn").disabled = total >= LIMIT.buttons;
+    $("addBtn").style.opacity = total >= LIMIT.buttons ? .4 : 1;
+  }
+  $("addBtn").addEventListener("click", () => {
+    if (state.buttons.length + (needsAC()?1:0) >= LIMIT.buttons) return;
+    state.buttons.push({ type:"WL", name:"", mo:"", pc:"" }); renderButtons(); update(false);
+    const n = $("bn" + (state.buttons.length-1)); n && n.focus();
+  });
+
+  /* ---------- counters / vars ---------- */
+  function counter(id, val, max){ const n = [...String(val||"")].length; const el = $(id); el.textContent = `${n}/${max}`; el.classList.toggle("over", n > max); }
+
+  function renderVars(){
+    const vs = allVars(), box = $("vars");
+    $("varCount").textContent = `(${vs.length}/${LIMIT.vars})`;
+    if (!vs.length){ box.innerHTML = `<div class="empty">본문에 #{변수명}을 넣으면 여기에 예시값 입력칸이 생깁니다.</div>`; return; }
+    const focused = document.activeElement && document.activeElement.dataset.var;
+    box.innerHTML = vs.map((v,i) => `<div class="var-row"><span class="var-tag" title="#{${esc(v)}}">#{${esc(v)}}</span><input type="text" id="var${i}" data-var="${esc(v)}" value="${esc(state.samples[v]||"")}" placeholder="예시값 입력" aria-label="${esc(v)} 예시값"></div>`).join("");
+    box.querySelectorAll("input").forEach(inp => inp.addEventListener("input", e => { state.samples[e.target.dataset.var] = e.target.value; save(); renderPreview(); }));
+    if (focused){ const el = box.querySelector(`[data-var="${CSS.escape(focused)}"]`); if (el){ el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }
+  }
+
+  /* ---------- preview ---------- */
+  function renderPreview(){
+    const opt = $("channel").selectedOptions[0], nm = opt.dataset.name;
+    $("pvChannel").textContent = nm; $("pvSender").textContent = nm; $("pvAvatar").textContent = nm.slice(0,1);
+    const d = new Date(), h = d.getHours(), m = String(d.getMinutes()).padStart(2,"0");
+    $("pvTime").textContent = `${h<12?"오전":"오후"} ${((h+11)%12)+1}:${m}`;
+
+    let html = `<div class="band"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3C6.5 3 2 6.6 2 11c0 2.8 1.8 5.3 4.6 6.7l-1 3.6c-.1.4.3.7.6.5l4.3-2.8c.5.1 1 .1 1.5.1 5.5 0 10-3.6 10-8S17.5 3 12 3z"/></svg>알림톡 도착</div>`;
+    if (state.emph === "IMAGE") html += imageData ? `<img class="hero" src="${imageData}" alt="강조 이미지">` : `<div class="img-ph">이미지 영역 (2:1)</div>`;
+    html += `<div class="inner">`;
+    if (state.emph === "TEXT"){
+      html += `<div class="emph"><span class="sub">${state.sub ? renderText(state.sub) : '<span class="placeholder">보조 문구</span>'}</span><span class="ttl">${state.title ? renderText(state.title) : '<span class="placeholder">강조 제목</span>'}</span></div>`;
+    }
+    html += `<div class="content">${state.content.trim() ? renderText(state.content) : '<span class="placeholder">템플릿 내용을 입력하세요</span>'}</div>`;
+    if ((state.msgType === "EX" || state.msgType === "MI") && state.extra.trim()) html += `<div class="extra">${esc(state.extra)}</div>`;
+    if (needsAC()) html += `<div class="ad">${AD_TEXT}</div>`;
+    const btns = (needsAC() ? [{name:"채널 추가"}] : []).concat(state.buttons);
+    if (btns.length) html += `<div class="pbtns">${btns.map(b => `<div class="pbtn">${b.name ? esc(b.name) : '<span class="placeholder">버튼명</span>'}</div>`).join("")}</div>`;
+    html += `</div>`;
+    $("pvBubble").innerHTML = html;
+  }
+
+  /* ---------- update ---------- */
+  let lastMsgType = state.msgType;
+  function update(rerenderBtns = true){
+    $("emphText").hidden = state.emph !== "TEXT";
+    $("emphImage").hidden = state.emph !== "IMAGE";
+    $("extraWrap").hidden = !(state.msgType === "EX" || state.msgType === "MI");
+    if (rerenderBtns && state.msgType !== lastMsgType){ lastMsgType = state.msgType; renderButtons(); }
+    counter("cntName", state.name, LIMIT.name); counter("cntCode", state.code, LIMIT.code);
+    counter("cntContent", state.content, LIMIT.content); counter("cntExtra", state.extra, LIMIT.extra);
+    counter("cntTitle", state.title, LIMIT.title); counter("cntSub", state.sub, LIMIT.sub);
+    renderVars(); renderPreview(); save();
+  }
+
+  /* ---------- validate & payload ---------- */
+  function validate(){
+    const E = [], W = [], len = s => [...String(s||"")].length;
+    const mark = (id, bad) => { const el = $(id); el && el.classList.toggle("invalid", !!bad); };
+    const bad = (cond, id, msg) => { mark(id, cond); if (cond) E.push(msg); };
+    bad(!state.name.trim(), "tplName", "템플릿 이름을 입력하세요.");
+    bad(!/^[A-Za-z0-9_]{1,30}$/.test(state.code), "tplCode", "템플릿 코드는 영문·숫자·_ 조합 1~30자여야 합니다.");
+    bad(!state.content.trim() || len(state.content) > LIMIT.content, "content", `템플릿 내용은 1~${LIMIT.content}자여야 합니다. (현재 ${len(state.content)}자)`);
+    const body = state.content.replace(VAR_RE, "").replace(/\s/g, "");
+    if (state.content.trim() && !body) E.push("본문이 변수로만 이루어져 있으면 검수에서 반려됩니다. 고정 문구를 함께 써 주세요.");
+    const vs = allVars();
+    if (vs.length > LIMIT.vars) E.push(`변수는 최대 ${LIMIT.vars}개까지 쓸 수 있습니다. (현재 ${vs.length}개)`);
+    vs.filter(v => !v.trim()).length && E.push("빈 변수 #{}가 있습니다.");
+    if (state.msgType === "EX" || state.msgType === "MI"){
+      bad(!state.extra.trim() || len(state.extra) > LIMIT.extra, "extra", `부가 정보는 1~${LIMIT.extra}자여야 합니다.`);
+      if (varsIn(state.extra).length) { mark("extra", true); E.push("부가 정보에는 변수를 쓸 수 없습니다."); }
+    } else mark("extra", false);
+    if (state.emph === "TEXT"){
+      bad(!state.title.trim() || len(state.title) > LIMIT.title, "emTitle", `강조 제목은 1~${LIMIT.title}자여야 합니다.`);
+      bad(!state.sub.trim() || len(state.sub) > LIMIT.sub, "emSub", `보조 문구는 1~${LIMIT.sub}자여야 합니다.`);
+    } else { mark("emTitle", false); mark("emSub", false); }
+    if (state.emph === "IMAGE" && !imageData) E.push("이미지형은 이미지를 첨부해야 합니다.");
+    state.buttons.forEach((b, i) => {
+      bad(!b.name.trim() || len(b.name) > LIMIT.btnName, "bn"+i, `${i+1+(needsAC()?1:0)}번 버튼명은 1~${LIMIT.btnName}자여야 합니다.`);
+      if (b.type === "WL"){
+        bad(!/^https?:\/\/\S+$/.test(b.mo), "bmo"+i, `${b.name||"웹링크"} 버튼의 Mobile URL이 http(s)로 시작하지 않습니다.`);
+        if (b.pc) bad(!/^https?:\/\/\S+$/.test(b.pc), "bpc"+i, `${b.name||"웹링크"} 버튼의 PC URL 형식이 잘못됐습니다.`);
+      }
+      if (b.type === "AL"){
+        bad(!b.mo.trim(), "bmo"+i, `${b.name||"앱링크"} 버튼의 Android scheme을 입력하세요.`);
+        bad(!b.pc.trim(), "bpc"+i, `${b.name||"앱링크"} 버튼의 iOS scheme을 입력하세요.`);
+      }
+    });
+    const missing = vs.filter(v => v.trim() && !state.samples[v]);
+    if (missing.length) W.push(`예시값이 없는 변수: ${missing.map(v=>"#{"+v+"}").join(", ")} (검수 신청 시 예시값을 함께 내면 통과가 빨라집니다)`);
+    if (/광고|이벤트|할인|쿠폰|특가/.test(state.content)) W.push("광고성으로 보일 수 있는 단어가 있습니다. 알림톡은 정보성 메시지만 허용됩니다.");
+    if (state.security && !/인증/.test(state.content)) W.push("보안 템플릿은 보통 인증번호 발송용입니다. 용도를 다시 확인해 주세요.");
+    return { E, W };
+  }
+
+  function payload(){
+    const order = [];
+    if (needsAC()) order.push({ ordering: 1, type: "AC", name: "채널 추가" });
+    state.buttons.forEach(b => {
+      const o = { ordering: order.length + 1, type: b.type, name: b.name };
+      if (b.type === "WL"){ o.linkMo = b.mo; if (b.pc) o.linkPc = b.pc; }
+      if (b.type === "AL"){ o.schemeAndroid = b.mo; o.schemeIos = b.pc; }
+      order.push(o);
+    });
+    const p = {
+      senderKey: `<${state.channel} 의 senderKey>`,
+      templateCode: state.code,
+      templateName: state.name,
+      templateMessageType: state.msgType,
+      templateEmphasizeType: state.emph,
+      templateContent: state.content,
+      categoryCode: state.category,
+      securityFlag: state.security,
+    };
+    if (state.msgType === "EX" || state.msgType === "MI") p.templateExtra = state.extra;
+    if (state.emph === "TEXT"){ p.templateTitle = state.title; p.templateSubtitle = state.sub; }
+    if (state.emph === "IMAGE") p.templateImageUrl = "<딜러사 이미지 업로드 API 응답 URL>";
+    p.buttons = order;
+    const vs = allVars(); if (vs.length) p._sampleVariables = Object.fromEntries(vs.map(v => [v, state.samples[v] || ""]));
+    return p;
+  }
+
+  $("form").addEventListener("submit", e => {
+    e.preventDefault();
+    const { E, W } = validate();
+    const items = [...E.map(m => `<li class="e">✕ ${esc(m)}</li>`), ...W.map(m => `<li class="w">! ${esc(m)}</li>`)];
+    if (!E.length) items.unshift(`<li class="ok">✓ 필수 항목 검증 통과. 아래 데이터를 딜러사 템플릿 등록 API로 보내면 됩니다.</li>`);
+    $("issues").innerHTML = items.join("");
+    $("payload").textContent = JSON.stringify(payload(), null, 2);
+    $("result").hidden = false;
+    $("result").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  });
+
+  $("copyBtn").addEventListener("click", () => {
+    const txt = $("payload").textContent;
+    const fallback = () => { const r = document.createRange(); r.selectNodeContents($("payload")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast("텍스트를 선택했습니다. Ctrl/⌘+C로 복사하세요."); };
+    try { navigator.clipboard.writeText(txt).then(() => toast("페이로드를 복사했습니다."), fallback); } catch(err){ fallback(); }
+  });
+
+  $("resetBtn").addEventListener("click", () => {
+    state = structuredClone(SAMPLE); imageData = null; $("emImg").value = ""; lastMsgType = state.msgType;
+    document.querySelectorAll(".invalid").forEach(el => el.classList.remove("invalid"));
+    $("result").hidden = true; fillForm(); update(); toast("예시 템플릿으로 되돌렸습니다.");
+  });
+
+  let tt; function toast(msg){ const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 2200); }
+
+  fillForm(); update();
+})();
+</script>
