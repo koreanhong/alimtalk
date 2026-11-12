@@ -19,7 +19,7 @@ class ClaudeLlmClientLiveTest {
         ClaudeLlmClient client = new ClaudeLlmClient(props);
 
         LlmOutput out = client.generate(prompts.system(), prompts.user("주문 관련 메시지 세팅해줘", "마이스토어"),
-                Duration.ofSeconds(60));
+                Duration.ofSeconds(60)).output();
 
         assertThat(out.status()).isEqualTo(LlmOutput.Status.OK);
         assertThat(out.draft().msgType()).isNotNull();

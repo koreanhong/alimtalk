@@ -74,7 +74,7 @@ public class ClaudeLlmClient implements LlmClient {
     }
 
     @Override
-    public LlmOutput generate(String system, String user, Duration timeout) throws LlmException {
+    public LlmResponse generate(String system, String user, Duration timeout) throws LlmException {
         try {
             return call(system, user, timeout);
         } catch (LlmException e) {
@@ -86,7 +86,7 @@ public class ClaudeLlmClient implements LlmClient {
         }
     }
 
-    private LlmOutput call(String system, String user, Duration timeout) throws LlmException {
+    private LlmResponse call(String system, String user, Duration timeout) throws LlmException {
         StructuredMessageCreateParams<LlmOutput> params = MessageCreateParams.builder()
                 .model(props.model())
                 .maxTokens(props.maxTokens())
@@ -117,10 +117,11 @@ public class ClaudeLlmClient implements LlmClient {
             throw classify(e.getCause());
         }
 
-        log.info("LLM usage: input={}, output={}, cacheRead={}, cacheWrite={}",
-                response.usage().inputTokens(), response.usage().outputTokens(),
+        LlmUsage usage = new LlmUsage(response.usage().inputTokens(), response.usage().outputTokens(),
                 response.usage().cacheReadInputTokens().orElse(0L),
                 response.usage().cacheCreationInputTokens().orElse(0L));
+        log.info("LLM usage: input={}, output={}, cacheRead={}, cacheWrite={}",
+                usage.input(), usage.output(), usage.cacheRead(), usage.cacheWrite());
 
         Optional<StopReason> stop = response.stopReason();
         if (stop.isPresent() && stop.get().equals(StopReason.REFUSAL)) {
@@ -130,11 +131,12 @@ public class ClaudeLlmClient implements LlmClient {
             throw new LlmException(LlmException.Kind.INVALID_OUTPUT, "LLM 응답이 잘렸습니다");
         }
         try {
-            return response.content().stream()
+            LlmOutput output = response.content().stream()
                     .flatMap(block -> block.text().stream())
                     .map(text -> text.text())
                     .findFirst()
                     .orElseThrow(() -> new LlmException(LlmException.Kind.INVALID_OUTPUT, "LLM 응답에 결과가 없습니다"));
+            return new LlmResponse(output, usage);
         } catch (RuntimeException e) {
             throw new LlmException(LlmException.Kind.INVALID_OUTPUT, "LLM 응답 형식이 올바르지 않습니다");
         }

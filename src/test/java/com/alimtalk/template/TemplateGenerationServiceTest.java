@@ -7,9 +7,13 @@ import com.alimtalk.llm.LlmClient;
 import com.alimtalk.llm.LlmException;
 import com.alimtalk.llm.LlmOutput;
 import com.alimtalk.llm.LlmProperties;
+import com.alimtalk.llm.LlmResponse;
+import com.alimtalk.llm.LlmUsage;
 import com.alimtalk.llm.PromptBuilder;
 import com.alimtalk.rules.RuleLoader;
 import com.alimtalk.rules.RuleValidator;
+import com.alimtalk.usage.UsageLogProperties;
+import com.alimtalk.usage.UsageRecord;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -29,8 +33,15 @@ class TemplateGenerationServiceTest {
     private final RuleLoader loader = new RuleLoader();
     private final MutableClock clock = new MutableClock();
     private final ScriptedLlm llm = new ScriptedLlm(clock);
+    private static final UsageLogProperties USAGE_PROPS = new UsageLogProperties("logs/llm-usage.csv",
+            new UsageLogProperties.Price(4.0, 20.0, 0.2, 5.0));
+    /** 가짜 LLM이 호출마다 돌려주는 토큰 수. */
+    private static final LlmUsage PER_CALL = new LlmUsage(10, 100, 5000, 0);
+
+    private final List<UsageRecord> recorded = new ArrayList<>();
     private final TemplateGenerationService service = new TemplateGenerationService(
-            llm, new PromptBuilder(loader), new RuleValidator(loader.ruleSet()), PROPS, clock);
+            llm, new PromptBuilder(loader), new RuleValidator(loader.ruleSet()), PROPS, clock,
+            recorded::add, USAGE_PROPS);
 
     private static LlmOutput ok(String content) {
         return new LlmOutput(LlmOutput.Status.OK, "", new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01",
@@ -128,6 +139,73 @@ class TemplateGenerationServiceTest {
         assertThat(((GenerationResult.Success) r).warnings()).isEmpty();
     }
 
+    // ---------- 사용량 기록 ----------
+
+    @Test
+    void recordsSuccessWithSummedUsageElapsedAndCost() throws Exception {
+        llm.after(Duration.ofSeconds(30)).then(tooLong()).then(valid());
+
+        service.generate("주문 관련 메시지 세팅해줘", "마이스토어");
+
+        assertThat(recorded).hasSize(1);
+        UsageRecord r = recorded.get(0);
+        assertThat(r.result()).isEqualTo("SUCCESS");
+        assertThat(r.attempts()).isEqualTo(2);
+        assertThat(r.elapsedMs()).isEqualTo(60_000);
+        assertThat(r.usage()).isEqualTo(new LlmUsage(20, 200, 10000, 0));
+        assertThat(r.costUsd()).isCloseTo((20 * 4.0 + 200 * 20.0 + 10000 * 0.2) / 1_000_000, org.assertj.core.api.Assertions.within(1e-12));
+        assertThat(r.model()).isEqualTo("claude-opus-5-5");
+        assertThat(r.effort()).isEqualTo("medium");
+        assertThat(r.category()).isEqualTo("002001");
+        assertThat(r.msgType()).isEqualTo("BA");
+        assertThat(r.emph()).isEqualTo("NONE");
+        assertThat(r.prompt()).isEqualTo("주문 관련 메시지 세팅해줘");
+    }
+
+    @Test
+    void recordsRejectionWithoutDraftFields() throws Exception {
+        llm.then(new LlmOutput(LlmOutput.Status.AD_CONTENT, "광고 불가", null));
+
+        service.generate("이번 주말 할인 행사 홍보해줘", "마이스토어");
+
+        UsageRecord r = recorded.get(0);
+        assertThat(r.result()).isEqualTo("AD_CONTENT");
+        assertThat(r.attempts()).isEqualTo(1);
+        assertThat(r.usage()).isEqualTo(PER_CALL);
+        assertThat(r.category()).isNull();
+    }
+
+    @Test
+    void recordsRuleViolation() throws Exception {
+        llm.then(tooLong()).then(tooLong()).then(tooLong());
+
+        service.generate("이용약관 전부 안내", "마이스토어");
+
+        assertThat(recorded.get(0).result()).isEqualTo("RULE_VIOLATION");
+        assertThat(recorded.get(0).attempts()).isEqualTo(3);
+    }
+
+    @Test
+    void recordsErrorAndStillThrows() {
+        llm.thenThrow(new LlmException(LlmException.Kind.TIMEOUT, "timeout"));
+
+        assertThatThrownBy(() -> service.generate("주문 관련 메시지 세팅해줘", "마이스토어"))
+                .isInstanceOf(LlmException.class);
+        assertThat(recorded).hasSize(1);
+        assertThat(recorded.get(0).result()).isEqualTo("ERROR_TIMEOUT");
+        assertThat(recorded.get(0).usage()).isEqualTo(LlmUsage.ZERO);
+    }
+
+    @Test
+    void recorderFailureDoesNotBreakGeneration() throws Exception {
+        TemplateGenerationService failing = new TemplateGenerationService(
+                llm, new PromptBuilder(loader), new RuleValidator(loader.ruleSet()), PROPS, clock,
+                rec -> { throw new IllegalStateException("disk full"); }, USAGE_PROPS);
+        llm.then(valid());
+
+        assertThat(failing.generate("주문 완료 안내", "마이스토어")).isInstanceOf(GenerationResult.Success.class);
+    }
+
     @Test
     void adContentIsRejectedWithoutValidation() throws Exception {
         llm.then(new LlmOutput(LlmOutput.Status.AD_CONTENT, "알림톡으로는 광고를 보낼 수 없습니다.", null));
@@ -207,7 +285,7 @@ class TemplateGenerationServiceTest {
         }
 
         @Override
-        public LlmOutput generate(String system, String user, Duration timeout) throws LlmException {
+        public LlmResponse generate(String system, String user, Duration timeout) throws LlmException {
             userMessages.add(user);
             timeouts.add(timeout);
             clock.advance(delay);
@@ -215,7 +293,7 @@ class TemplateGenerationServiceTest {
             if (next instanceof LlmException e) {
                 throw e;
             }
-            return (LlmOutput) next;
+            return new LlmResponse((LlmOutput) next, PER_CALL);
         }
     }
 

@@ -11,3 +11,11 @@ alimtalk:
     total-budget: 120s
     max-retries: 2
     max-tokens: 16000
+  # 자연어 생성 요청별 사용량 기록(CSV, 요청 1건 = 1줄). 비용은 아래 단가로 계산한 추정치다.
+  usage-log:
+    path: logs/llm-usage.csv
+    price:                       # 100만 토큰당 USD (claude-opus-5-5, 캐시 저장은 5분 유지 기준 입력의 1.25배)
+      input-per-mtok: 4.0
+      output-per-mtok: 20.0
+      cache-read-per-mtok: 0.2
+      cache-write-per-mtok: 5.0

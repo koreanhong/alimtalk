@@ -29,6 +29,12 @@ LIVE_LLM_TEST=true ./gradlew test --tests '*ClaudeLlmClientLiveTest'
 - 서버 시작 시 `ANTHROPIC_API_KEY(또는 ANTHROPIC_AUTH_TOKEN) 환경변수가 없습니다` 경고가 **나오지 않아야** 정상이다.
 - 4단계가 실패하면 원인은 `build/reports/tests/test/index.html`에서 볼 수 있다.
 
+### 사용량 기록 (`logs/llm-usage.csv`)
+- 자연어 생성 요청 1건마다 한 줄씩 기록된다(성공·규칙 위반·거절·오류 모두). 엑셀에서 바로 열 수 있다.
+- 항목: 시각, 결과, 시도 횟수, 소요(ms), 입력·출력·캐시 읽기·캐시 저장 토큰(재생성 포함 합계), 추정비용(USD), 모델, effort, 카테고리, 메시지 유형, 강조 유형, 요청 문장
+- 비용은 `application.yml`의 `alimtalk.usage-log.price` 단가(100만 토큰당 USD)로 계산한 **추정치**다. 실제 청구 금액은 Claude Console의 사용량·비용 화면에서 확인한다.
+- 파일은 git에 포함되지 않는다(`logs/`). 경로는 `alimtalk.usage-log.path`로 바꿀 수 있다.
+
 ## 2. 가짜 LLM 모드로 실행 (키 없이, 비용 없음)
 
 ```bash

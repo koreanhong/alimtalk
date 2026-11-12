@@ -14,7 +14,11 @@ import org.springframework.stereotype.Component;
 public class FakeLlmClient implements LlmClient {
 
     @Override
-    public LlmOutput generate(String system, String user, Duration timeout) {
+    public LlmResponse generate(String system, String user, Duration timeout) {
+        return new LlmResponse(answer(user), LlmUsage.ZERO);
+    }
+
+    private LlmOutput answer(String user) {
         String request = user.lines().filter(l -> l.startsWith("요청: ")).findFirst().orElse(user);
         if (request.contains("광고")) {
             return new LlmOutput(LlmOutput.Status.AD_CONTENT, "알림톡으로는 광고를 보낼 수 없습니다. 브랜드 메시지를 이용해 주세요.", null);
