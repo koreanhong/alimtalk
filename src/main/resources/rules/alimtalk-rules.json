@@ -23,5 +23,18 @@
   "bannedPhrases": ["지금 구매", "앱 설치", "특가", "(광고)"],
   "cautionWords": ["할인", "이벤트", "쿠폰", "혜택", "광고"],
   "codePattern": "^[A-Za-z0-9_]{1,30}$",
-  "promptLengthTarget": 700
+  "promptLengthTarget": 700,
+  "buttons": {
+    "nameMax": 14,
+    "max": 5
+  },
+  "itemList": {
+    "header": 16,
+    "hlTitle": 30,
+    "hlTitleThumb": 21,
+    "hlDesc": 19,
+    "hlDescThumb": 13,
+    "min": 2,
+    "max": 10
+  }
 }

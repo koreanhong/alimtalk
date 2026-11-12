@@ -49,7 +49,7 @@
 .bubble .it-hl{display:flex;gap:8px;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--line)}
 .bubble .it-hl img{width:40px;height:40px;object-fit:cover;border-radius:4px}
 .bubble .it-hl b{display:block;font-size:14px}
-.bubble .it-hl span{font-size:12px;color:var(--bubble-sub)}
+.bubble .it-hl div > span{font-size:12px;color:var(--bubble-sub)}
 .bubble .it-rows{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-bottom:1px solid var(--line)}
 .bubble .it-rows div,.bubble .it-sum{display:flex;justify-content:space-between;gap:8px;font-size:13px}
 .bubble .it-rows i{font-style:normal;color:var(--bubble-sub)}
@@ -561,6 +561,8 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     });
     const total = state.buttons.length + (needsAC()?1:0);
     $("btnCount").textContent = `${total}/${LIMIT.buttons}`;
+    $("btnCount").classList.toggle("counter", true);
+    $("btnCount").classList.toggle("over", total > LIMIT.buttons);
     $("addBtn").disabled = total >= LIMIT.buttons;
     $("addBtn").style.opacity = total >= LIMIT.buttons ? .4 : 1;
   }
@@ -636,8 +638,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
 
   $("resetBtn").addEventListener("click", () => {
     state = structuredClone(SAMPLE);
-    imageData = null; $("emImg").value = "";
-    itemImageData = null; thumbData = null; $("itImg").value = ""; $("itThumb").value = "";
+    clearImages();
     clearStatus();
     fillForm(); update(); toast("예시 템플릿으로 되돌렸습니다.");
   });
@@ -648,8 +649,24 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     for (const k of ["name", "code", "content", "extra", "title", "sub", "vars"]){
       if (Number.isInteger(rules.limits[k])) LIMIT[k] = rules.limits[k];
     }
-    update();
+    /* 수작업 전용 제한값: 규칙 파일 키 → 화면 LIMIT 키 */
+    const map = [
+      ["buttons", "nameMax", "btnName"], ["buttons", "max", "buttons"],
+      ["itemList", "header", "itHeader"], ["itemList", "hlTitle", "itHlTitle"], ["itemList", "hlTitleThumb", "itHlTitleThumb"],
+      ["itemList", "hlDesc", "itHlDesc"], ["itemList", "hlDescThumb", "itHlDescThumb"], ["itemList", "min", "itemsMin"], ["itemList", "max", "itemsMax"]
+    ];
+    for (const [group, key, limitKey] of map){
+      const v = rules[group] && rules[group][key];
+      if (Number.isInteger(v)) LIMIT[limitKey] = v;
+    }
+    renderButtons(); renderItems(); update();
   }).catch(() => { /* 실패 시 기본값 유지 */ });
+
+  /* 이미지형·아이템리스트형 이미지는 state에 저장하지 않으므로 따로 비운다 */
+  function clearImages(){
+    imageData = null; itemImageData = null; thumbData = null;
+    $("emImg").value = ""; $("itImg").value = ""; $("itThumb").value = "";
+  }
 
   /* ---------- 자연어 생성 ---------- */
   function clearStatus(){ $("nlStatus").innerHTML = ""; $("nlViolationActions").hidden = true; pendingDraft = null; }
@@ -670,6 +687,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
       else if (k === "security") state.security = !!draft.security;
       else state[k] = draft[k] == null ? "" : String(draft[k]);
     }
+    clearImages();
     fillForm(); update();
     return true;
   }

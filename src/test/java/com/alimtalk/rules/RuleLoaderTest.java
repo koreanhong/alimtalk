@@ -18,4 +18,20 @@ class RuleLoaderTest {
         assertThat(rules.msgTypes()).isEqualTo(List.of("BA", "EX"));
         assertThat(rules.categories()).hasSize(7);
     }
+
+    @Test
+    void loadsManualOnlyLimitsForButtonsAndItemList() {
+        RuleSet rules = new RuleLoader().ruleSet();
+
+        assertThat(rules.buttons().nameMax()).isEqualTo(14);
+        assertThat(rules.buttons().max()).isEqualTo(5);
+        RuleSet.ItemList item = rules.itemList();
+        assertThat(item.header()).isEqualTo(16);
+        assertThat(item.hlTitle()).isEqualTo(30);
+        assertThat(item.hlTitleThumb()).isEqualTo(21);
+        assertThat(item.hlDesc()).isEqualTo(19);
+        assertThat(item.hlDescThumb()).isEqualTo(13);
+        assertThat(item.min()).isEqualTo(2);
+        assertThat(item.max()).isEqualTo(10);
+    }
 }
