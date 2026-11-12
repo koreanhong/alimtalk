@@ -21,6 +21,36 @@ class ClaudeLlmClientTest {
     }
 
     @Test
+    void describesApiErrorWithTypeMessageAndRequestId() {
+        com.anthropic.errors.BadRequestException e = com.anthropic.errors.BadRequestException.builder()
+                .headers(com.anthropic.core.http.Headers.builder().put("request-id", "req_test123").build())
+                .body(com.anthropic.core.JsonValue.from(Map.of(
+                        "type", "error",
+                        "error", Map.of("type", "invalid_request_error",
+                                "message", "Your credit balance is too low to access the Anthropic API."))))
+                .build();
+
+        String d = ClaudeLlmClient.describe(e);
+
+        assertThat(d).contains("status=400")
+                .contains("invalid_request_error")
+                .contains("credit balance is too low")
+                .contains("req_test123");
+    }
+
+    @Test
+    void describeTruncatesLongApiMessage() {
+        com.anthropic.errors.BadRequestException e = com.anthropic.errors.BadRequestException.builder()
+                .headers(com.anthropic.core.http.Headers.builder().build())
+                .body(com.anthropic.core.JsonValue.from(Map.of(
+                        "type", "error",
+                        "error", Map.of("type", "invalid_request_error", "message", "x".repeat(1000)))))
+                .build();
+
+        assertThat(ClaudeLlmClient.describe(e).length()).isLessThan(600);
+    }
+
+    @Test
     void clientCreationFailureBecomesApiErrorNot500() {
         ClaudeLlmClient client = new ClaudeLlmClient(PROPS, () -> {
             throw new IllegalStateException("INTERNAL-xyz");

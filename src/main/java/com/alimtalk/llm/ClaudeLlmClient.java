@@ -148,11 +148,25 @@ public class ClaudeLlmClient implements LlmClient {
             return new LlmException(LlmException.Kind.INVALID_OUTPUT, "LLM 응답 형식이 올바르지 않습니다");
         }
         if (cause instanceof AnthropicServiceException service) {
-            log.warn("LLM API 오류: status={}", service.statusCode());
+            log.warn("LLM API 오류: {}", describe(service));
             return new LlmException(LlmException.Kind.API_ERROR, "LLM API 오류");
         }
         log.warn("LLM 호출 실패: {}", cause == null ? "unknown" : cause.getClass().getName());
         return new LlmException(LlmException.Kind.API_ERROR, "LLM 호출 실패");
+    }
+
+    /**
+     * Anthropic이 돌려준 오류를 원인 파악용으로 요약한다(상태 코드, 오류 종류, 오류 설명, 요청 ID).
+     * 요청 본문·헤더·키는 담지 않는다. 오류 설명은 길면 자른다. 이 문자열은 로그에만 쓰고 화면 응답에는 쓰지 않는다.
+     */
+    static String describe(AnthropicServiceException e) {
+        String type = e.errorType().map(Object::toString).orElse("unknown");
+        String message = e.apiMessage().orElse("");
+        if (message.length() > 300) {
+            message = message.substring(0, 300) + "…";
+        }
+        String requestId = e.requestId().orElse("-");
+        return "status=%d, type=%s, message=%s, requestId=%s".formatted(e.statusCode(), type, message, requestId);
     }
 
     private static boolean hasTimeoutCause(Throwable t) {
