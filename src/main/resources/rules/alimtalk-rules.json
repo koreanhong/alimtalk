@@ -1,0 +1,27 @@
+{
+  "meta": {
+    "source": [
+      "https://kakaobusiness.gitbook.io/main/ad/infotalk/audit",
+      "https://solapi.com/developers/api/messages-ata",
+      "https://guide.ncloud-docs.com/docs/sens-attemplate"
+    ],
+    "checkedAt": "2026-11-12",
+    "note": "딜러사 확정 전까지 확인된 값 중 더 엄격한 값을 사용한다. 원문과 비교해 사람이 갱신한다."
+  },
+  "limits": {
+    "content": 1000,
+    "extra": 500,
+    "title": 50,
+    "sub": 50,
+    "name": 40,
+    "code": 30,
+    "vars": 30
+  },
+  "categories": ["002001", "002002", "003001", "004001", "006001", "006003", "999999"],
+  "msgTypes": ["BA", "EX"],
+  "emphTypes": ["NONE", "TEXT"],
+  "bannedPhrases": ["지금 구매", "앱 설치", "특가", "(광고)"],
+  "cautionWords": ["할인", "이벤트", "쿠폰", "혜택", "광고"],
+  "codePattern": "^[A-Za-z0-9_]{1,30}$",
+  "promptLengthTarget": 700
+}
