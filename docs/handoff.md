@@ -46,7 +46,9 @@
   - Task 1~7 완료(2026-11-12). 자동 테스트 41개(라이브 1개 skip), 가짜 LLM 모드 + 헤드리스 Chrome 화면 확인 24항목 통과.
   - 실행 모드: `./gradlew bootRun`(실제 Claude, `ANTHROPIC_API_KEY` 필요) / `SPRING_PROFILES_ACTIVE=fake-llm ./gradlew bootRun`(가짜 LLM: "위반"→규칙 위반, "광고"→거절, 그 외→주문완료 고정 응답)
   - 최종 코드 리뷰: Critical 0, Important 2(스왑 파일 커밋 → 제거 완료 / 타임아웃 후 SDK 백그라운드 재시도로 추가 과금 가능 → **사용자 결정 대기**), Minor 7(ledger에 기록, 보류)
-  - 남은 작업: Task 8(사용자 API 키로 실제 호출 확인), 채널추가형·복합형 추가 여부(사용자 질문, 결정 대기)
+  - 2026-11-12 변경(사용자 요청): 수작업으로는 카카오 제공 유형 전부 설정 가능 — 메시지 유형 4종(BA/EX/AD/MI), 강조 유형 4종(NONE/TEXT/IMAGE/ITEM_LIST), 버튼 섹션 복원. 자동 작성은 BA/EX·NONE/TEXT만, 자연어 카드에 안내 문구(#nlScope). 화면 확인 37항목 통과.
+  - SDK 재시도: 사용자 결정 "(나) 그대로 둔다" — 응답 60초 초과 시 SDK가 백그라운드로 최대 2회 재요청(과금 가능). 변경하려면 ClaudeLlmClient에서 maxRetries(0).
+  - 남은 작업: Task 8(사용자 API 키로 실제 호출 확인). 확인 필요: 채널추가형 안내 문구가 시안("…광고와 마케팅 메시지를…")과 카카오 원문("채널 추가하고 이 채널의 마케팅 메시지 등을 카카오톡으로 받기")이 다름.
   - 규칙 파일 위치: `src/main/resources/rules/`(classpath, 사용자 결정)
   - 생성 지침 `alimtalk-review-guide.md`: 구현 첫 단계에서 Claude가 초안 작성 → 사용자 검토 후 진행
   - 재생성 후에도 규칙 위반 시: 위반 내용 표시 + [그래도 폼에 채우기]/[다시 생성]

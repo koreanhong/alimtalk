@@ -41,6 +41,19 @@
 }
 *{box-sizing:border-box}
 [hidden]{display:none !important}
+.item-wrap{display:flex;flex-direction:column;gap:12px}
+.item-list{display:flex;flex-direction:column;gap:8px}
+.item-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:8px;align-items:center}
+.bubble .it-img{display:block;width:100%;aspect-ratio:2/1;object-fit:cover}
+.bubble .it-head{font-size:13px;font-weight:700;padding-bottom:6px}
+.bubble .it-hl{display:flex;gap:8px;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.bubble .it-hl img{width:40px;height:40px;object-fit:cover;border-radius:4px}
+.bubble .it-hl b{display:block;font-size:14px}
+.bubble .it-hl span{font-size:12px;color:var(--bubble-sub)}
+.bubble .it-rows{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-bottom:1px solid var(--line)}
+.bubble .it-rows div,.bubble .it-sum{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.bubble .it-rows i{font-style:normal;color:var(--bubble-sub)}
+.bubble .it-sum{font-weight:700;padding:8px 0 4px}
 body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:14px;line-height:1.55;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 48px}
 .wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
@@ -181,7 +194,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
           <div class="field-head"><label for="nlPrompt">어떤 안내 메시지가 필요한가요?</label><span class="counter" id="cntPrompt"></span></div>
           <textarea id="nlPrompt" rows="3" maxlength="500" style="min-height:80px"></textarea>
           <span class="hint">알림톡은 정보성 메시지만 보낼 수 있습니다. 광고·홍보성 요청은 작성되지 않습니다.</span>
-          <span class="hint" id="nlScope">자동 작성은 메시지 유형 <b>기본형·부가정보형</b>, 강조 유형 <b>선택 안 함·강조 표기형</b>만 채웁니다. 채널추가형·복합형, 이미지형 강조, 버튼은 아래에서 직접 설정해 주세요.</span>
+          <span class="hint" id="nlScope">자동 작성은 메시지 유형 <b>기본형·부가정보형</b>, 강조 유형 <b>선택 안 함·강조 표기형</b>만 채웁니다. 채널추가형·복합형, 이미지형·아이템리스트형 강조, 버튼은 아래에서 직접 설정해 주세요.</span>
         </div>
         <div class="actions"><button type="button" class="primary" id="nlGenerate">생성</button></div>
         <ul class="issues" id="nlStatus" aria-live="polite"></ul>
@@ -242,6 +255,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
           <label><input type="radio" name="emph" value="NONE" checked><b>선택 안 함</b><span>일반 본문</span></label>
           <label><input type="radio" name="emph" value="TEXT"><b>강조 표기형</b><span>큰 제목 + 보조 문구</span></label>
           <label><input type="radio" name="emph" value="IMAGE"><b>이미지형</b><span>상단 이미지 2:1</span></label>
+          <label><input type="radio" name="emph" value="ITEM_LIST"><b>아이템리스트형</b><span>항목 목록 + 요약</span></label>
         </div>
         <div class="row" id="emphText" hidden>
           <div class="field">
@@ -258,6 +272,48 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
           <label for="emImg" class="req">이미지</label>
           <input type="file" id="emImg" accept="image/png,image/jpeg">
           <span class="hint">권장 800×400px, JPG·PNG, 500KB 이하. 실제 등록 시 딜러사에 먼저 업로드해 URL을 받습니다.</span>
+        </div>
+        <div id="emphItem" class="item-wrap" hidden>
+          <span class="hint">이미지·헤더·아이템 하이라이트 중 하나는 반드시 입력해야 합니다.</span>
+          <div class="field">
+            <label for="itImg">상단 이미지 (선택)</label>
+            <input type="file" id="itImg" accept="image/png,image/jpeg">
+          </div>
+          <div class="field">
+            <div class="field-head"><label for="itHeader">헤더</label><span class="counter" id="cntItHeader"></span></div>
+            <input type="text" id="itHeader" data-it="header">
+          </div>
+          <div class="row">
+            <div class="field">
+              <div class="field-head"><label for="itHlTitle">하이라이트 제목</label><span class="counter" id="cntItHlTitle"></span></div>
+              <input type="text" id="itHlTitle" data-it="hlTitle">
+            </div>
+            <div class="field">
+              <div class="field-head"><label for="itHlDesc">하이라이트 설명</label><span class="counter" id="cntItHlDesc"></span></div>
+              <input type="text" id="itHlDesc" data-it="hlDesc">
+            </div>
+          </div>
+          <div class="field">
+            <label for="itThumb">하이라이트 썸네일 (선택, 넣으면 제목 21자·설명 13자로 줄어듭니다)</label>
+            <input type="file" id="itThumb" accept="image/png,image/jpeg">
+          </div>
+          <div class="field">
+            <div class="lbl">아이템 리스트 <span class="hint" id="itemCount"></span></div>
+            <div class="item-list" id="itemList"></div>
+            <div class="toolbar"><button type="button" class="chip-btn" id="addItem">+ 항목 추가</button></div>
+            <span class="hint">항목명에는 변수를 쓸 수 없고, 내용에는 쓸 수 있습니다.</span>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="itSumName">요약 이름</label>
+              <input type="text" id="itSumName" data-it="sumName" placeholder="예: 총 결제금액">
+            </div>
+            <div class="field">
+              <label for="itSumDesc">요약 내용</label>
+              <input type="text" id="itSumDesc" data-it="sumDesc" placeholder="예: #{결제금액}원">
+              <span class="hint">숫자·쉼표·마침표·통화기호·통화단위만 입력합니다.</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -332,7 +388,9 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
 (() => {
   const $ = (id) => document.getElementById(id);
   /* 기본값. 기동 시 GET /api/rules 의 limits로 덮어쓴다. */
-  const LIMIT = { name: 40, code: 30, content: 1000, extra: 500, title: 50, sub: 50, btnName: 14, buttons: 5, vars: 30, prompt: 500 };
+  const LIMIT = { name: 40, code: 30, content: 1000, extra: 500, title: 50, sub: 50, btnName: 14, buttons: 5, vars: 30, prompt: 500,
+    itHeader: 16, itHlTitle: 30, itHlTitleThumb: 21, itHlDesc: 19, itHlDescThumb: 13, itemsMin: 2, itemsMax: 10 };
+  const emptyItem = () => ({ header: "", hlTitle: "", hlDesc: "", list: [{ name: "", desc: "" }, { name: "", desc: "" }], sumName: "", sumDesc: "" });
   const AD_TEXT = "채널 추가하고 이 채널의 광고와 마케팅 메시지를 카카오톡으로 받기";
   const BTN_TYPES = { WL: "웹링크", AL: "앱링크", DS: "배송조회", BK: "봇키워드", MD: "메시지전달" };
   const STORE_KEY = "alimtalk-tpl-draft-v2";
@@ -350,14 +408,16 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     buttons: [
       { type: "WL", name: "주문 상세 보기", mo: "https://mystore.example.com/orders/#{주문번호}", pc: "" },
       { type: "DS", name: "배송 조회", mo: "", pc: "" }
-    ]
+    ],
+    item: emptyItem()
   };
   /* 덮어쓰기 확인·자동 작성 대상이 되는 폼 항목 (채널은 사용자가 고르므로 제외) */
-  const FORM_KEYS = ["category", "name", "code", "msgType", "emph", "title", "sub", "content", "extra", "security", "samples", "buttons"];
+  const FORM_KEYS = ["category", "name", "code", "msgType", "emph", "title", "sub", "content", "extra", "security", "samples", "buttons", "item"];
 
   let state = load() || structuredClone(SAMPLE);
   if (!Array.isArray(state.buttons)) state.buttons = [];
-  let imageData = null;
+  if (!state.item || !Array.isArray(state.item.list)) state.item = emptyItem();
+  let imageData = null, itemImageData = null, thumbData = null;
   let pendingDraft = null;
 
   function load(){ try{ const s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : null; }catch(e){ return null; } }
@@ -372,6 +432,10 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     const srcs = [state.content];
     if (state.emph === "TEXT") srcs.unshift(state.title);
     state.buttons.forEach(b => srcs.push(b.mo, b.pc));
+    if (state.emph === "ITEM_LIST"){
+      const it = state.item;
+      srcs.push(it.header, it.hlTitle, it.hlDesc, ...it.list.map(r => r.desc), it.sumDesc);
+    }
     srcs.forEach(s => varsIn(s).forEach(v => { if (!seen.has(v)) { seen.add(v); list.push(v); } }));
     return list;
   }
@@ -397,8 +461,10 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     $("emTitle").value = state.title; $("emSub").value = state.sub;
     $("content").value = state.content; $("extra").value = state.extra;
     $("security").checked = state.security;
+    document.querySelectorAll("[data-it]").forEach(inp => { inp.value = state.item[inp.dataset.it] || ""; });
     lastMsgType = state.msgType;
     renderButtons();
+    renderItems();
   }
 
   function bind(id, key, ev="input"){ $(id).addEventListener(ev, e => { state[key] = e.target.type === "checkbox" ? e.target.checked : e.target.value; update(); }); }
@@ -421,6 +487,41 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     ta.focus(); ta.selectionStart = ta.selectionEnd = s + t.length;
     state.content = ta.value; update();
   }));
+
+  /* ---------- 아이템리스트형 (수작업 전용) ---------- */
+  document.querySelectorAll("[data-it]").forEach(inp => inp.addEventListener("input", e => { state.item[e.target.dataset.it] = e.target.value; update(false); }));
+  function readImage(input, set){
+    input.addEventListener("change", e => {
+      const f = e.target.files[0]; if (!f) { set(null); update(false); return; }
+      if (f.size > 500 * 1024) toast("이미지가 500KB를 넘습니다. 실제 검수에서 반려될 수 있어요.");
+      const r = new FileReader(); r.onload = () => { set(r.result); update(false); }; r.readAsDataURL(f);
+    });
+  }
+  readImage($("itImg"), v => { itemImageData = v; });
+  readImage($("itThumb"), v => { thumbData = v; });
+
+  function renderItems(){
+    const list = $("itemList"), rows = state.item.list;
+    list.innerHTML = rows.map((r, i) => `<div class="item-row">
+        <input type="text" data-ik="name" data-i="${i}" value="${esc(r.name)}" placeholder="항목명 (예: 상품명)" aria-label="${i+1}번 항목명">
+        <input type="text" data-ik="desc" data-i="${i}" value="${esc(r.desc)}" placeholder="내용 (예: #{상품명})" aria-label="${i+1}번 내용">
+        <button type="button" class="icon-btn" data-idel="${i}" aria-label="${i+1}번 항목 삭제" ${rows.length <= LIMIT.itemsMin ? "disabled" : ""}>×</button>
+      </div>`).join("");
+    list.querySelectorAll("[data-ik]").forEach(inp => inp.addEventListener("input", e => {
+      rows[+e.target.dataset.i][e.target.dataset.ik] = e.target.value; update(false);
+    }));
+    list.querySelectorAll("[data-idel]").forEach(b => b.addEventListener("click", () => {
+      if (rows.length <= LIMIT.itemsMin) return;
+      rows.splice(+b.dataset.idel, 1); renderItems(); update(false);
+    }));
+    $("itemCount").textContent = `(${rows.length}/${LIMIT.itemsMax}, 최소 ${LIMIT.itemsMin}개)`;
+    $("addItem").disabled = rows.length >= LIMIT.itemsMax;
+    $("addItem").style.opacity = rows.length >= LIMIT.itemsMax ? .4 : 1;
+  }
+  $("addItem").addEventListener("click", () => {
+    if (state.item.list.length >= LIMIT.itemsMax) return;
+    state.item.list.push({ name: "", desc: "" }); renderItems(); update(false);
+  });
 
   /* ---------- buttons (수작업 전용, 자동 작성 대상 아님) ---------- */
   function needsAC(){ return state.msgType === "AD" || state.msgType === "MI"; }
@@ -491,7 +592,17 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
 
     let html = `<div class="band"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3C6.5 3 2 6.6 2 11c0 2.8 1.8 5.3 4.6 6.7l-1 3.6c-.1.4.3.7.6.5l4.3-2.8c.5.1 1 .1 1.5.1 5.5 0 10-3.6 10-8S17.5 3 12 3z"/></svg>알림톡 도착</div>`;
     if (state.emph === "IMAGE") html += imageData ? `<img class="hero" src="${imageData}" alt="강조 이미지">` : `<div class="img-ph">이미지 영역 (2:1)</div>`;
+    if (state.emph === "ITEM_LIST" && itemImageData) html += `<img class="it-img" src="${itemImageData}" alt="상단 이미지">`;
     html += `<div class="inner">`;
+    if (state.emph === "ITEM_LIST"){
+      const it = state.item;
+      if (it.header.trim()) html += `<div class="it-head">${renderText(it.header)}</div>`;
+      if (it.hlTitle.trim() || it.hlDesc.trim()){
+        html += `<div class="it-hl"><div><b>${renderText(it.hlTitle)}</b><span>${renderText(it.hlDesc)}</span></div>${thumbData ? `<img src="${thumbData}" alt="썸네일">` : ""}</div>`;
+      }
+      html += `<div class="it-rows">${it.list.map(r => `<div><i>${r.name ? esc(r.name) : '<span class="placeholder">항목명</span>'}</i><span>${r.desc ? renderText(r.desc) : '<span class="placeholder">내용</span>'}</span></div>`).join("")}</div>`;
+      if (it.sumName.trim() || it.sumDesc.trim()) html += `<div class="it-sum"><span>${esc(it.sumName)}</span><span>${renderText(it.sumDesc)}</span></div>`;
+    }
     if (state.emph === "TEXT"){
       html += `<div class="emph"><span class="sub">${state.sub ? renderText(state.sub) : '<span class="placeholder">보조 문구</span>'}</span><span class="ttl">${state.title ? renderText(state.title) : '<span class="placeholder">강조 제목</span>'}</span></div>`;
     }
@@ -509,6 +620,10 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
   function update(rerenderBtns = true){
     $("emphText").hidden = state.emph !== "TEXT";
     $("emphImage").hidden = state.emph !== "IMAGE";
+    $("emphItem").hidden = state.emph !== "ITEM_LIST";
+    counter("cntItHeader", state.item.header, LIMIT.itHeader);
+    counter("cntItHlTitle", state.item.hlTitle, thumbData ? LIMIT.itHlTitleThumb : LIMIT.itHlTitle);
+    counter("cntItHlDesc", state.item.hlDesc, thumbData ? LIMIT.itHlDescThumb : LIMIT.itHlDesc);
     $("extraWrap").hidden = !(state.msgType === "EX" || state.msgType === "MI");
     if (rerenderBtns && state.msgType !== lastMsgType){ lastMsgType = state.msgType; renderButtons(); }
     counter("cntName", state.name, LIMIT.name); counter("cntCode", state.code, LIMIT.code);
@@ -522,6 +637,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
   $("resetBtn").addEventListener("click", () => {
     state = structuredClone(SAMPLE);
     imageData = null; $("emImg").value = "";
+    itemImageData = null; thumbData = null; $("itImg").value = ""; $("itThumb").value = "";
     clearStatus();
     fillForm(); update(); toast("예시 템플릿으로 되돌렸습니다.");
   });
@@ -550,6 +666,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     for (const k of FORM_KEYS){
       if (k === "samples") state.samples = { ...(draft.samples || {}) };
       else if (k === "buttons") state.buttons = [];
+      else if (k === "item") state.item = emptyItem();
       else if (k === "security") state.security = !!draft.security;
       else state[k] = draft[k] == null ? "" : String(draft[k]);
     }
