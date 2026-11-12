@@ -12,12 +12,15 @@ import org.springframework.stereotype.Component;
 public class RuleLoader {
 
     private static final String RULES_PATH = "rules/alimtalk-rules.json";
+    private static final String GUIDE_PATH = "rules/alimtalk-review-guide.md";
 
     private final String rawJson;
     private final RuleSet ruleSet;
+    private final String reviewGuide;
 
     public RuleLoader() {
         this.rawJson = readClasspath(RULES_PATH);
+        this.reviewGuide = readClasspath(GUIDE_PATH);
         try {
             this.ruleSet = new ObjectMapper().readValue(rawJson, RuleSet.class);
         } catch (IOException e) {
@@ -31,6 +34,11 @@ public class RuleLoader {
 
     public String rawJson() {
         return rawJson;
+    }
+
+    /** LLM 시스템 프롬프트에 넣을 생성 지침 원문. */
+    public String reviewGuide() {
+        return reviewGuide;
     }
 
     static String readClasspath(String path) {
