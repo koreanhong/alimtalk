@@ -39,7 +39,14 @@
 - Java/Spring Boot 버전·빌드 도구 확정
 - 설계 문서 `docs/specs/2026-11-12-nl-alimtalk-template-design.md` **승인됨(2026-11-12)**.
 - 구현 계획 `docs/plans/2026-11-12-nl-alimtalk-template.md` 작성됨(Task 1~8). 다음: 사용자 계획 검토·실행 방식 선택 → 구현
-  - 구현 전 확인 필요: 로컬 JDK가 17이라 Java 21 준비 방법(Gradle toolchain 자동 다운로드 / 직접 설치), Gradle 미설치(start.spring.io wrapper 사용), git init 여부
+  - 실행 방식: Native(이 세션에서 순서대로 구현). 진행 기록(ledger): `.superpowers/sdd/2026-11-12-nl-alimtalk-template/progress.md` (git 제외 폴더)
+  - 환경: git init 완료, 작업 브랜치 `feature/nl-template-generation`. JDK 21은 Gradle toolchain(foojay) 자동 다운로드, Gradle 9.8.2 wrapper.
+  - Spring Boot: start.spring.io가 4.x만 제공 → 사용자 결정(3.x)을 지켜 `3.5.16`(Maven Central 최신 3.5.x)으로 고정. 3.5의 지원 기간은 확인 필요.
+  - 진행 상황: Task 1(골격·규칙 JSON·`GET /api/rules`) 완료, Task 3(RuleValidator, 테스트 18개) 완료.
+  - Task 1~7 완료(2026-11-12). 자동 테스트 41개(라이브 1개 skip), 가짜 LLM 모드 + 헤드리스 Chrome 화면 확인 24항목 통과.
+  - 실행 모드: `./gradlew bootRun`(실제 Claude, `ANTHROPIC_API_KEY` 필요) / `SPRING_PROFILES_ACTIVE=fake-llm ./gradlew bootRun`(가짜 LLM: "위반"→규칙 위반, "광고"→거절, 그 외→주문완료 고정 응답)
+  - 최종 코드 리뷰: Critical 0, Important 2(스왑 파일 커밋 → 제거 완료 / 타임아웃 후 SDK 백그라운드 재시도로 추가 과금 가능 → **사용자 결정 대기**), Minor 7(ledger에 기록, 보류)
+  - 남은 작업: Task 8(사용자 API 키로 실제 호출 확인), 채널추가형·복합형 추가 여부(사용자 질문, 결정 대기)
   - 규칙 파일 위치: `src/main/resources/rules/`(classpath, 사용자 결정)
   - 생성 지침 `alimtalk-review-guide.md`: 구현 첫 단계에서 Claude가 초안 작성 → 사용자 검토 후 진행
   - 재생성 후에도 규칙 위반 시: 위반 내용 표시 + [그래도 폼에 채우기]/[다시 생성]
@@ -49,4 +56,5 @@
 
 ## 작업 이력
 - 2026-11-12: CLAUDE.md 및 프로젝트 현황 파악. `docs/handoff.md` 생성, `CLAUDE.md`에 참조 한 줄 추가. "작업 종료 시마다 handoff 갱신" 규칙 확정 및 `CLAUDE.md` 4번 섹션에 추가. 규칙은 `CLAUDE.md`에서만 관리한다(개인 메모리의 중복 항목은 삭제).
+- 2026-11-12: 구현 시작 — git init, Task 1·3 완료(테스트 20개 통과), Task 2 생성 지침 초안 작성 후 사용자 검토 대기.
 - 2026-11-12: `alimtalk-template.html` 전체 분석(Dry-run, 페이로드 생성만). 자연어 템플릿 자동 작성 기획 브레인스토밍 — 범위·규칙 관리 방식·구현 방식(A)·백엔드·모델 결정.
