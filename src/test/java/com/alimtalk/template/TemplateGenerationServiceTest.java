@@ -33,8 +33,8 @@ class TemplateGenerationServiceTest {
             llm, new PromptBuilder(loader), new RuleValidator(loader.ruleSet()), PROPS, clock);
 
     private static LlmOutput ok(String content) {
-        return new LlmOutput("OK", "", new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01",
-                "BA", "NONE", "", "", content, "", false, List.of(new LlmOutput.Sample("고객명", "홍길동"))));
+        return new LlmOutput(LlmOutput.Status.OK, "", new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01",
+                LlmOutput.MsgType.BA, LlmOutput.Emph.NONE, "", "", content, "", false, List.of(new LlmOutput.Sample("고객명", "홍길동"))));
     }
 
     private static LlmOutput valid() {
@@ -93,7 +93,7 @@ class TemplateGenerationServiceTest {
 
     @Test
     void adContentIsRejectedWithoutValidation() throws Exception {
-        llm.then(new LlmOutput("AD_CONTENT", "알림톡으로는 광고를 보낼 수 없습니다.", null));
+        llm.then(new LlmOutput(LlmOutput.Status.AD_CONTENT, "알림톡으로는 광고를 보낼 수 없습니다.", null));
 
         GenerationResult r = service.generate("할인 쿠폰 홍보 보내줘", "마이스토어");
 
@@ -123,8 +123,8 @@ class TemplateGenerationServiceTest {
 
     @Test
     void nullFieldsAreTreatedAsEmpty() throws Exception {
-        llm.then(new LlmOutput("OK", null, new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01",
-                "BA", "NONE", null, null, "#{고객명}님, 주문이 접수되었습니다.", null, false,
+        llm.then(new LlmOutput(LlmOutput.Status.OK, null, new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01",
+                LlmOutput.MsgType.BA, LlmOutput.Emph.NONE, null, null, "#{고객명}님, 주문이 접수되었습니다.", null, false,
                 List.of(new LlmOutput.Sample("고객명", "홍길동")))));
 
         GenerationResult r = service.generate("주문 관련 메시지 세팅해줘", "마이스토어");

@@ -21,7 +21,7 @@ class ClaudeLlmClientLiveTest {
         LlmOutput out = client.generate(prompts.system(), prompts.user("주문 관련 메시지 세팅해줘", "마이스토어"),
                 Duration.ofSeconds(60));
 
-        assertThat(out.status()).isEqualTo("OK");
-        assertThat(out.draft().msgType()).isIn("BA", "EX");
+        assertThat(out.status()).isEqualTo(LlmOutput.Status.OK);
+        assertThat(out.draft().msgType()).isNotNull();
     }
 }

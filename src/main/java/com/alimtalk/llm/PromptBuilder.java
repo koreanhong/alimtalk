@@ -36,7 +36,8 @@ public class PromptBuilder {
     }
 
     public String user(String prompt, String channelName) {
-        return "발신 채널: " + channelName + "\n요청: " + prompt;
+        String channelLine = channelName == null || channelName.isBlank() ? "" : "발신 채널: " + channelName + "\n";
+        return channelLine + "요청: " + prompt;
     }
 
     public String retry(String prompt, String channelName, TemplateDraft previous, List<String> errors) {

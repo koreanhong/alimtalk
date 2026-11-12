@@ -17,13 +17,17 @@ import com.anthropic.models.messages.TextBlockParam;
 import java.io.InterruptedIOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -38,14 +42,51 @@ public class ClaudeLlmClient implements LlmClient {
     private static final Logger log = LoggerFactory.getLogger(ClaudeLlmClient.class);
 
     private final LlmProperties props;
+    private final Supplier<AnthropicClient> clientFactory;
     private volatile AnthropicClient client;
 
+    @Autowired
     public ClaudeLlmClient(LlmProperties props) {
+        this(props, AnthropicOkHttpClient::fromEnv);
+    }
+
+    /** 테스트에서 클라이언트 생성 실패를 흉내 내기 위한 생성자. */
+    ClaudeLlmClient(LlmProperties props, Supplier<AnthropicClient> clientFactory) {
         this.props = props;
+        this.clientFactory = clientFactory;
+    }
+
+    /** 키가 없어도 서버는 뜨지만, 첫 생성 요청에서 원인 모를 오류가 나지 않도록 시작 시 알린다(키 값은 출력하지 않음). */
+    @PostConstruct
+    void warnIfCredentialsMissing() {
+        if (credentialsMissing(System.getenv())) {
+            log.warn("ANTHROPIC_API_KEY(또는 ANTHROPIC_AUTH_TOKEN) 환경변수가 없습니다. 자연어 생성 요청은 오류로 응답합니다. "
+                    + "키 없이 화면만 확인하려면 SPRING_PROFILES_ACTIVE=fake-llm 으로 실행하세요.");
+        }
+    }
+
+    static boolean credentialsMissing(Map<String, String> env) {
+        return isBlank(env.get("ANTHROPIC_API_KEY")) && isBlank(env.get("ANTHROPIC_AUTH_TOKEN"));
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 
     @Override
     public LlmOutput generate(String system, String user, Duration timeout) throws LlmException {
+        try {
+            return call(system, user, timeout);
+        } catch (LlmException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            // 클라이언트 생성·요청 구성 실패도 502(LLM_ERROR)로 응답되도록 변환한다. 내부 메시지는 담지 않는다.
+            log.warn("LLM 호출 준비 실패: {}", e.getClass().getName());
+            throw new LlmException(LlmException.Kind.API_ERROR, "LLM 호출 실패");
+        }
+    }
+
+    private LlmOutput call(String system, String user, Duration timeout) throws LlmException {
         StructuredMessageCreateParams<LlmOutput> params = MessageCreateParams.builder()
                 .model(props.model())
                 .maxTokens(props.maxTokens())
@@ -129,7 +170,7 @@ public class ClaudeLlmClient implements LlmClient {
         if (c == null) {
             synchronized (this) {
                 if (client == null) {
-                    client = AnthropicOkHttpClient.fromEnv();
+                    client = clientFactory.get();
                 }
                 c = client;
             }

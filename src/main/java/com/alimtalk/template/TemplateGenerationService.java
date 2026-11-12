@@ -10,7 +10,6 @@ import com.alimtalk.rules.ValidationResult;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Set;
 import org.springframework.stereotype.Service;
 
 /**
@@ -19,8 +18,6 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class TemplateGenerationService {
-
-    private static final Set<String> REJECT_STATUSES = Set.of("AD_CONTENT", "UNCLEAR");
 
     private final LlmClient llm;
     private final PromptBuilder prompts;
@@ -66,12 +63,11 @@ public class TemplateGenerationService {
             }
             attempts++;
 
-            if (out == null || !"OK".equals(out.status())) {
-                String status = out == null ? null : out.status();
-                if (REJECT_STATUSES.contains(status)) {
-                    return new GenerationResult.Rejected(status, out.message() == null ? "" : out.message());
-                }
-                throw new LlmException(LlmException.Kind.INVALID_OUTPUT, "알 수 없는 응답 상태: " + status);
+            if (out == null || out.status() == null) {
+                throw new LlmException(LlmException.Kind.INVALID_OUTPUT, "LLM 응답에 상태가 없습니다");
+            }
+            if (out.status() != LlmOutput.Status.OK) {
+                return new GenerationResult.Rejected(out.status().name(), out.message() == null ? "" : out.message());
             }
             if (out.draft() == null) {
                 throw new LlmException(LlmException.Kind.INVALID_OUTPUT, "LLM 응답에 초안이 없습니다");

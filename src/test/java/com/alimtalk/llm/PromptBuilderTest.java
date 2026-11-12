@@ -28,6 +28,12 @@ class PromptBuilderTest {
     }
 
     @Test
+    void userOmitsChannelLineWhenBlank() {
+        assertThat(builder.user("주문 관련 메시지 세팅해줘", "")).doesNotContain("발신 채널");
+        assertThat(builder.user("주문 관련 메시지 세팅해줘", "마이스토어")).contains("발신 채널: 마이스토어");
+    }
+
+    @Test
     void retryIncludesErrorsAndPrevious() {
         TemplateDraft previous = new TemplateDraft("002001", "주문 완료 안내", "ORDER_COMPLETE_01", "BA", "NONE",
                 "", "", "#{고객명}님, 이전 본문입니다.", "", false, Map.of("고객명", "홍길동"));

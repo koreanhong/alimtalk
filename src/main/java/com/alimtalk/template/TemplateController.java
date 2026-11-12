@@ -28,7 +28,8 @@ public class TemplateController {
 
     @PostMapping("/api/templates/generate")
     public ResponseEntity<?> generate(@Valid @RequestBody GenerateRequest req) throws LlmException {
-        String channelName = CHANNEL_NAMES.getOrDefault(req.channel(), req.channel() == null ? "" : req.channel());
+        // 등록된 채널만 이름을 넘긴다. 임의 문자열이 프롬프트에 들어가지 않도록 미등록 값은 빈 이름으로 처리한다.
+        String channelName = req.channel() == null ? "" : CHANNEL_NAMES.getOrDefault(req.channel(), "");
         GenerationResult result = service.generate(req.prompt().strip(), channelName);
         return switch (result) {
             case GenerationResult.Success s -> ResponseEntity.ok(new SuccessBody(s.draft(), s.warnings(), s.attempts()));

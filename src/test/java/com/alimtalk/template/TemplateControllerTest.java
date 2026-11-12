@@ -99,6 +99,28 @@ class TemplateControllerTest {
     }
 
     @Test
+    void unknownChannelIsSentAsBlankName() throws Exception {
+        when(service.generate(anyString(), anyString()))
+                .thenReturn(new GenerationResult.Success(DRAFT, List.of(), 1));
+        String body = "{\"prompt\":\"주문 관련 메시지 세팅해줘\",\"channel\":\"아무 문장이나 넣어도 프롬프트에 들어감\"}";
+
+        mvc.perform(post("/api/templates/generate").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+
+        verify(service).generate("주문 관련 메시지 세팅해줘", "");
+    }
+
+    @Test
+    void tooLongChannelIs400() throws Exception {
+        String body = "{\"prompt\":\"주문 관련 메시지 세팅해줘\",\"channel\":\"" + "@".repeat(51) + "\"}";
+
+        mvc.perform(post("/api/templates/generate").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value("BAD_REQUEST"));
+        verify(service, never()).generate(any(), any());
+    }
+
+    @Test
     void timeoutIs504() throws Exception {
         when(service.generate(anyString(), anyString()))
                 .thenThrow(new LlmException(LlmException.Kind.TIMEOUT, "LLM 응답 시간 초과"));
