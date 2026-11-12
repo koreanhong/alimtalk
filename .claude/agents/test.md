@@ -12,7 +12,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 
 ## 할 일
 - 서버 테스트: `./gradlew test` (특정 테스트는 `--tests '<이름>'`). 결과는 `build/test-results/test/*.xml`의 tests/failures/errors 수로 확인한다.
-- 화면 확인: `SPRING_PROFILES_ACTIVE=fake-llm ./gradlew bootRun`으로 띄운 뒤 헤드리스 Chrome(`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --headless=new --dump-dom` 또는 `--screenshot`)으로 확인한다. 확인용 HTML은 `build/resources/main/static/` 아래에 임시로 두고 소스 폴더에는 넣지 않는다. 끝나면 띄운 서버를 종료한다.
+- 화면 확인: `src/test/ui/` 자동 점검 도구를 사용한다(실행 방법은 `src/test/ui/README.md`). 화면 동작을 새로 확인할 때는 `src/test/ui/verify.html`에 점검 항목을 추가한다. 일회성 스크린샷이 필요하면 헤드리스 Chrome `--screenshot`을 쓰고, 그때 쓰는 임시 HTML은 `build/` 아래에만 둔다. 끝나면 띄운 서버를 종료한다.
 - 가짜 LLM 응답 규칙: 요청에 "광고" → 광고 거절, "위반" → 1,100자 본문(규칙 위반), 그 외 → 주문완료 템플릿.
 
 ## 지켜야 할 것

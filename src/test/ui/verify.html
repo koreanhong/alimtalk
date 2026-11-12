@@ -1,0 +1,143 @@
+<!doctype html>
+<html><head><meta charset="utf-8"></head><body>
+<pre id="out">running</pre>
+<iframe id="f" src="/index.html" style="width:1200px;height:900px"></iframe>
+<script>
+const results = [];
+const errors = [];
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const rec = (name, pass, detail) => results.push({ name, pass, detail });
+const f = document.getElementById("f");
+f.addEventListener("load", async () => {
+  const w = f.contentWindow, d = w.document, $ = (id) => d.getElementById(id);
+  w.addEventListener("error", e => errors.push(String(e.message)));
+  try { w.localStorage.clear(); } catch (e) {}
+  await sleep(500);
+  try {
+
+  async function fakeImage(input){
+    const c = d.createElement("canvas"); c.width = 40; c.height = 40;
+    const blob = await new Promise(r => c.toBlob(r, "image/png"));
+    const dt = new w.DataTransfer(); dt.items.add(new w.File([blob], "x.png", { type: "image/png" }));
+    input.files = dt.files; input.dispatchEvent(new w.Event("change"));
+    await sleep(300);
+  }
+  const shown = (el) => w.getComputedStyle(el).display !== "none";
+  rec("violation actions not visible on load", !shown($("nlViolationActions")), w.getComputedStyle($("nlViolationActions")).display);
+  w.document.querySelector("input[name=emph][value=NONE]").click();
+  rec("emph text row not visible when NONE", !shown($("emphText")), w.getComputedStyle($("emphText")).display);
+  w.document.querySelector("input[name=msgType][value=BA]").click();
+  rec("extra field not visible when BA", !shown($("extraWrap")), w.getComputedStyle($("extraWrap")).display);
+  $("resetBtn").click();
+  rec("all msg types", [...d.querySelectorAll("input[name=msgType]")].map(r => r.value).join(",") === "BA,EX,AD,MI", "");
+  rec("all emph types", [...d.querySelectorAll("input[name=emph]")].map(r => r.value).join(",") === "NONE,TEXT,IMAGE,ITEM_LIST", "");
+  rec("button section exists", !!$("btnList") && !!$("addBtn"), "");
+  rec("no review section", !$("result") && !$("payload") && !d.querySelector("button[type=submit]"), "");
+  rec("auto-fill scope notice", /기본형/.test($("nlScope").textContent) && /부가정보형/.test($("nlScope").textContent) && /버튼/.test($("nlScope").textContent) && /아이템리스트형/.test($("nlScope").textContent), $("nlScope") ? $("nlScope").textContent : "missing");
+  d.querySelector("input[name=msgType][value=AD]").click();
+  rec("AD shows channel-add in preview", $("pvBubble").textContent.includes("채널 추가"), "");
+  rec("AD channel-add text", $("pvBubble").textContent.includes("채널 추가하고 이 채널의 광고와 마케팅 메시지 받기"), "");
+  rec("AD fixes first button as AC", $("btnList").textContent.includes("채널 추가 (AC)"), "");
+  d.querySelector("input[name=emph][value=IMAGE]").click();
+  rec("IMAGE shows image field", shown($("emphImage")), "");
+  d.querySelector("input[name=emph][value=ITEM_LIST]").click();
+  rec("ITEM_LIST shows item fields", shown($("emphItem")) && !shown($("emphImage")) && !shown($("emphText")), "");
+  rec("ITEM_LIST starts with 2 rows", $("itemList").querySelectorAll(".item-row").length === 2, "rows=" + $("itemList").querySelectorAll(".item-row").length);
+  for (let k = 0; k < 10; k++) $("addItem").click();
+  rec("ITEM_LIST max 10 rows", $("itemList").querySelectorAll(".item-row").length === 10 && $("addItem").disabled, "rows=" + $("itemList").querySelectorAll(".item-row").length);
+  $("itHeader").value = "주문 내역"; $("itHeader").dispatchEvent(new w.Event("input"));
+  const firstDesc = $("itemList").querySelector("[data-ik=desc]");
+  firstDesc.value = "#{상품명}"; firstDesc.dispatchEvent(new w.Event("input"));
+  rec("ITEM_LIST header in preview", $("pvBubble").textContent.includes("주문 내역"), "");
+  rec("ITEM_LIST item var gets sample input", !!$("vars").querySelector('[data-var="상품명"]'), "");
+  $("itHeader").value = "가".repeat(17); $("itHeader").dispatchEvent(new w.Event("input"));
+  rec("ITEM_LIST header counter over 16", $("cntItHeader").classList.contains("over"), $("cntItHeader").textContent);
+  $("resetBtn").click();
+  // Minor 1: 하이라이트 제목 안의 변수도 제목과 같은 글자 크기
+  d.querySelector("input[name=emph][value=ITEM_LIST]").click();
+  $("itHlTitle").value = "#{상품명} 외"; $("itHlTitle").dispatchEvent(new w.Event("input"));
+  { const b = $("pvBubble").querySelector(".it-hl b"), v = b && b.querySelector(".vfill, .vtag");
+    rec("hl title variable same font size", !!v && w.getComputedStyle(v).fontSize === w.getComputedStyle(b).fontSize, v ? w.getComputedStyle(v).fontSize + " vs " + w.getComputedStyle(b).fontSize : "no var"); }
+  // Minor 3: 채널추가형 전환으로 6/5가 되면 초과 표시
+  $("resetBtn").click();
+  d.querySelector("input[name=msgType][value=BA]").click();
+  for (let k = 0; k < 3; k++) $("addBtn").click();
+  d.querySelector("input[name=msgType][value=AD]").click();
+  rec("button count over marked", $("btnCount").textContent === "6/5" && $("btnCount").classList.contains("over"), $("btnCount").textContent + " " + $("btnCount").className);
+  $("resetBtn").click();
+  const before = $("btnList").querySelectorAll(".btn-item").length;
+  $("addBtn").click();
+  rec("add button works", $("btnList").querySelectorAll(".btn-item").length === before + 1, before + "→" + $("btnList").querySelectorAll(".btn-item").length);
+  $("resetBtn").click();
+  rec("preview rendered", $("pvBubble").textContent.includes("주문이 정상적으로"), $("pvBubble").textContent.slice(0, 40));
+  rec("limits from /api/rules (vars 30)", $("varCount").textContent.includes("/30"), $("varCount").textContent);
+
+  // 1) 기본 생성 (폼이 예시 그대로 → 확인 창 없이 덮어씀)
+  let confirmCalls = 0;
+  w.confirm = () => { confirmCalls++; return true; };
+  d.querySelector("input[name=emph][value=ITEM_LIST]").click();
+  await fakeImage($("itImg")); await fakeImage($("itThumb"));
+  d.querySelector("input[name=emph][value=IMAGE]").click();
+  await fakeImage($("emImg"));
+  $("resetBtn").click(); // 텍스트는 예시로 돌리되 이미지는 초기화되므로 다시 넣는다
+  d.querySelector("input[name=emph][value=ITEM_LIST]").click();
+  await fakeImage($("itImg")); await fakeImage($("itThumb"));
+  d.querySelector("input[name=emph][value=TEXT]").click();
+  $("nlPrompt").value = "주문 관련 메시지 세팅해줘";
+  $("nlGenerate").click();
+  await sleep(1500);
+  d.querySelector("input[name=emph][value=ITEM_LIST]").click();
+  rec("generate clears item images", !$("pvBubble").querySelector("img") && $("itImg").value === "" && $("itThumb").value === "" && $("cntItHlTitle").textContent === "0/30", "img=" + !!$("pvBubble").querySelector("img") + " itImg=" + $("itImg").value + " cnt=" + $("cntItHlTitle").textContent);
+  d.querySelector("input[name=emph][value=NONE]").click();
+  rec("generate fills form", $("content").value.startsWith("[주문완료 안내]") && $("extraWrap").hidden === false, $("content").value.slice(0, 20));
+  rec("generate clears buttons", $("btnList").querySelectorAll(".btn-item").length === 0, "items=" + $("btnList").querySelectorAll(".btn-item").length);
+  rec("no confirm when form untouched", confirmCalls === 0, "calls=" + confirmCalls);
+  rec("success status", $("nlStatus").textContent.includes("작성했습니다"), $("nlStatus").textContent);
+  rec("preview updated", $("pvBubble").textContent.includes("홍길동"), "");
+
+  // 2) 수정 후 재생성 → 확인 창, 취소 시 유지
+  $("tplName").value = "직접 수정한 이름";
+  $("tplName").dispatchEvent(new w.Event("input"));
+  w.confirm = () => { confirmCalls++; return false; };
+  $("nlGenerate").click();
+  await sleep(1500);
+  rec("confirm shown on edited form", confirmCalls === 1, "calls=" + confirmCalls);
+  rec("cancel keeps form", $("tplName").value === "직접 수정한 이름", $("tplName").value);
+
+  // 3) 규칙 위반
+  w.confirm = () => true;
+  $("nlPrompt").value = "위반 테스트";
+  $("nlGenerate").click();
+  await sleep(1500);
+  rec("violation actions visible", $("nlViolationActions").hidden === false, "");
+  rec("violation errors listed", $("nlStatus").textContent.includes("최대 1,000자"), $("nlStatus").textContent.slice(0, 80));
+  $("nlApplyAnyway").click();
+  await sleep(300);
+  rec("apply anyway fills form", $("content").value.length > 1000, "len=" + $("content").value.length);
+  rec("content counter over", $("cntContent").classList.contains("over"), $("cntContent").textContent);
+  rec("errors still shown", $("nlStatus").textContent.includes("최대 1,000자"), "");
+
+  // 4) 광고
+  $("nlPrompt").value = "광고 보내줘";
+  $("nlGenerate").click();
+  await sleep(1500);
+  rec("ad message only", $("nlStatus").textContent.includes("광고를 보낼 수 없습니다") && $("nlViolationActions").hidden, $("nlStatus").textContent);
+
+  // 5) 빈 입력
+  $("nlPrompt").value = "   ";
+  $("nlGenerate").click();
+  await sleep(500);
+  rec("blank input message", $("nlStatus").textContent.includes("요청 내용을 입력"), $("nlStatus").textContent);
+
+  // 6) 초기화
+  $("resetBtn").click();
+  await sleep(300);
+  rec("reset restores sample", $("content").value.includes("주문이 정상적으로") && $("nlStatus").textContent === "", "");
+  rec("reset restores sample buttons", $("btnList").querySelectorAll(".btn-item").length === 2, "");
+
+  } catch (e) { rec("harness error", false, String(e)); }
+  rec("no js errors", errors.length === 0, errors.join(" | "));
+  document.getElementById("out").textContent = "DONE " + JSON.stringify(results);
+});
+</script>
+</body></html>
