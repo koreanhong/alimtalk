@@ -47,7 +47,8 @@
   - 실행 모드: `./gradlew bootRun`(실제 Claude, `ANTHROPIC_API_KEY` 필요) / `SPRING_PROFILES_ACTIVE=fake-llm ./gradlew bootRun`(가짜 LLM: "위반"→규칙 위반, "광고"→거절, 그 외→주문완료 고정 응답)
   - 최종 코드 리뷰: Critical 0, Important 2(스왑 파일 커밋 → 제거 완료 / 타임아웃 후 SDK 백그라운드 재시도로 추가 과금 가능 → **사용자 결정 대기**), Minor 7(ledger에 기록, 보류)
   - 2026-11-12 변경(사용자 요청): 수작업으로는 카카오 제공 유형 전부 설정 가능 — 메시지 유형 4종(BA/EX/AD/MI), 강조 유형 4종(NONE/TEXT/IMAGE/ITEM_LIST), 버튼 섹션 복원. 자동 작성은 BA/EX·NONE/TEXT만, 자연어 카드에 안내 문구(#nlScope). 화면 확인 37항목 통과.
-  - SDK 재시도: 사용자 결정 "(나) 그대로 둔다" — 응답 60초 초과 시 SDK가 백그라운드로 최대 2회 재요청(과금 가능). 변경하려면 ClaudeLlmClient에서 maxRetries(0).
+  - 아이템리스트형 규격: 네이버 클라우드 기준 유지, 대행사 확정 시 맞춤(사용자 결정).
+  - SDK 재시도: 사용자 결정(재확인됨) "(나) 그대로 둔다" — 응답 60초 초과 시 SDK가 백그라운드로 최대 2회 재요청(과금 가능). 변경하려면 ClaudeLlmClient에서 maxRetries(0).
   - 남은 작업: Task 8(사용자 API 키로 실제 호출 확인). 확인 필요: 채널추가형 안내 문구가 시안("…광고와 마케팅 메시지를…")과 카카오 원문("채널 추가하고 이 채널의 마케팅 메시지 등을 카카오톡으로 받기")이 다름.
   - 규칙 파일 위치: `src/main/resources/rules/`(classpath, 사용자 결정)
   - 생성 지침 `alimtalk-review-guide.md`: 구현 첫 단계에서 Claude가 초안 작성 → 사용자 검토 후 진행
@@ -58,5 +59,6 @@
 
 ## 작업 이력
 - 2026-11-12: CLAUDE.md 및 프로젝트 현황 파악. `docs/handoff.md` 생성, `CLAUDE.md`에 참조 한 줄 추가. "작업 종료 시마다 handoff 갱신" 규칙 확정 및 `CLAUDE.md` 4번 섹션에 추가. 규칙은 `CLAUDE.md`에서만 관리한다(개인 메모리의 중복 항목은 삭제).
+- 2026-11-12: CLAUDE.md 4번 섹션에 "코드 변경·작업 전 사용자 확인" 규칙 추가. 대기 중: 채널추가형 문구 변경(문구 확인 중), 에이전트 4종 생성 및 리뷰 이후 변경분 검토.
 - 2026-11-12: 구현 시작 — git init, Task 1·3 완료(테스트 20개 통과), Task 2 생성 지침 초안 작성 후 사용자 검토 대기.
 - 2026-11-12: `alimtalk-template.html` 전체 분석(Dry-run, 페이로드 생성만). 자연어 템플릿 자동 작성 기획 브레인스토밍 — 범위·규칙 관리 방식·구현 방식(A)·백엔드·모델 결정.
