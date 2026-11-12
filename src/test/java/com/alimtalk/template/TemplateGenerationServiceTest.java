@@ -91,6 +91,43 @@ class TemplateGenerationServiceTest {
         assertThat(llm.userMessages).hasSize(1);
     }
 
+    private static LlmOutput withMessage(LlmOutput out, String message) {
+        return new LlmOutput(out.status(), message, out.draft());
+    }
+
+    @Test
+    void assumptionMessageBecomesFirstWarning() throws Exception {
+        llm.then(withMessage(ok("#{고객명}님, 주문이 접수되었습니다. 할인 금액: #{고객명}"), "주문 완료 안내로 가정했습니다."));
+
+        GenerationResult r = service.generate("주문 관련 메시지 세팅해줘", "마이스토어");
+
+        assertThat(r).isInstanceOf(GenerationResult.Success.class);
+        List<String> warnings = ((GenerationResult.Success) r).warnings();
+        assertThat(warnings.get(0)).isEqualTo("주문 완료 안내로 가정했습니다.");
+        assertThat(warnings).hasSize(2); // 가정 + 주의 단어(할인)
+    }
+
+    @Test
+    void assumptionMessageKeptOnRuleViolation() throws Exception {
+        llm.then(withMessage(tooLong(), "주문 완료 안내로 가정했습니다."))
+                .then(withMessage(tooLong(), "주문 완료 안내로 가정했습니다."))
+                .then(withMessage(tooLong(), "주문 완료 안내로 가정했습니다."));
+
+        GenerationResult r = service.generate("주문 관련 메시지 세팅해줘", "마이스토어");
+
+        assertThat(r).isInstanceOf(GenerationResult.RuleViolation.class);
+        assertThat(((GenerationResult.RuleViolation) r).warnings()).first().isEqualTo("주문 완료 안내로 가정했습니다.");
+    }
+
+    @Test
+    void blankMessageAddsNoWarning() throws Exception {
+        llm.then(withMessage(valid(), "  "));
+
+        GenerationResult r = service.generate("주문 완료 안내 메시지", "마이스토어");
+
+        assertThat(((GenerationResult.Success) r).warnings()).isEmpty();
+    }
+
     @Test
     void adContentIsRejectedWithoutValidation() throws Exception {
         llm.then(new LlmOutput(LlmOutput.Status.AD_CONTENT, "알림톡으로는 광고를 보낼 수 없습니다.", null));

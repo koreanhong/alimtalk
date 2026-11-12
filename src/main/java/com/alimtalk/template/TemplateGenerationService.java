@@ -10,6 +10,8 @@ import com.alimtalk.rules.ValidationResult;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
@@ -40,6 +42,7 @@ public class TemplateGenerationService {
 
         TemplateDraft lastDraft = null;
         ValidationResult lastResult = null;
+        String lastAssumption = "";
         int attempts = 0;
 
         while (attempts < maxAttempts) {
@@ -75,10 +78,23 @@ public class TemplateGenerationService {
 
             lastDraft = out.draft().toDraft();
             lastResult = validator.validate(lastDraft);
+            lastAssumption = out.message() == null ? "" : out.message().strip();
             if (!lastResult.hasErrors()) {
-                return new GenerationResult.Success(lastDraft, lastResult.warnings(), attempts);
+                return new GenerationResult.Success(lastDraft, withAssumption(lastAssumption, lastResult.warnings()), attempts);
             }
         }
-        return new GenerationResult.RuleViolation(lastDraft, lastResult.errors(), lastResult.warnings(), attempts);
+        return new GenerationResult.RuleViolation(lastDraft, lastResult.errors(),
+                withAssumption(lastAssumption, lastResult.warnings()), attempts);
+    }
+
+    /** 애매한 요청을 Claude가 어떤 경우로 가정해 작성했는지(예: "주문 완료 안내로 가정했습니다.")를 경고 맨 앞에 둔다. */
+    private static List<String> withAssumption(String assumption, List<String> warnings) {
+        if (assumption.isBlank()) {
+            return warnings;
+        }
+        List<String> merged = new ArrayList<>(warnings.size() + 1);
+        merged.add(assumption);
+        merged.addAll(warnings);
+        return List.copyOf(merged);
     }
 }

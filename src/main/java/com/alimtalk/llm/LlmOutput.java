@@ -13,7 +13,7 @@ import java.util.Map;
 public record LlmOutput(
         @JsonPropertyDescription("OK: 템플릿 작성, AD_CONTENT: 광고성 요청이라 작성 불가, UNCLEAR: 요청이 불명확함")
         Status status,
-        @JsonPropertyDescription("status가 OK가 아닐 때 사용자에게 보여줄 한국어 한 문장. OK면 빈 문자열")
+        @JsonPropertyDescription("사용자에게 보여줄 한국어 한 문장. status가 OK가 아니면 거절·질문 이유. OK인데 애매한 요청을 가정해서 작성했다면 가정한 내용(예: 주문 완료 안내로 가정했습니다). 가정이 없으면 빈 문자열")
         String message,
         @JsonPropertyDescription("템플릿 초안. status가 OK가 아니면 모든 문자열을 빈 문자열로 채운다")
         DraftOut draft) {
