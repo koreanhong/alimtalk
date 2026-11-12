@@ -66,7 +66,7 @@
 
 ## 다음 작업
 1. Task 8: 사용자 API 키로 실제 Claude 호출 확인(응답 시간·재시도 횟수·토큰/캐시 사용량 기록, effort 조정 판단) — **보류: 사용자 API 키 발급 대기(2026-11-12)**
-   - 진행 순서: 별도 터미널에서 `export ANTHROPIC_API_KEY=...`(대화창·`!` 명령에 키 입력 금지) → `LIVE_LLM_TEST=true ./gradlew test --tests '*ClaudeLlmClientLiveTest'` → `./gradlew bootRun 2>&1 | tee build/live-run.log` 후 화면에서 5개 문장 확인(주문/배송/인증/할인 홍보(거절)/"세팅해줘"(불명확)) → `build/live-run.log`의 `LLM usage` 줄로 토큰·캐시 분석
+   - 진행 순서: 별도 터미널에서 `read -s ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY` 후 키 붙여넣기(셸 히스토리에 남지 않음. `export ANTHROPIC_API_KEY=키` 형태로 입력하면 `~/.zsh_history`에 저장되므로 쓰지 않는다. 대화창·`!` 명령에 키 입력 금지) → `LIVE_LLM_TEST=true ./gradlew test --tests '*ClaudeLlmClientLiveTest'` → `./gradlew bootRun 2>&1 | tee build/live-run.log` 후 화면에서 5개 문장 확인(주문/배송/인증/할인 홍보(거절)/"세팅해줘"(불명확)) → `build/live-run.log`의 `LLM usage` 줄로 토큰·캐시 분석
 2. 남은 보류 지적 2건(이전 버전 저장값 때문의 불필요한 확인 창, 저장 데이터 일부 손상 시 보정) 처리 여부 결정
 3. 브랜치를 main에 합칠지 결정
 
@@ -79,3 +79,4 @@
 - 2026-11-12: 2차 코드 리뷰(code-reviewer 에이전트, 리뷰 이후 변경분): Critical 0, Important 0, Minor 9. 사용자 선택으로 1(하이라이트 변수 글자 모양)·2(자동 작성 시 이미지 비우기)·3(버튼 초과 표시)·8(버튼·아이템리스트 제한값 규칙 파일 이동) 수정. CLAUDE.md에 "선택형 질문으로 확인" 규칙 추가. handoff 재정리.
 - 2026-11-12: 보류 지적 중 사용자 선택 항목 처리 — 덮어쓰기 취소 시 결과 보관, 자연어 글자 수 기준, 특수문자 변수명, 유형 값 enum 강제, 채널 값 제한, API 키 없을 때 경고·502 통일. 화면 점검 도구를 `src/test/ui/`로 옮기고 test 에이전트 지침 연결. 커밋 메시지는 한국어로 작성(사용자 요청).
 - 2026-11-12: CLAUDE.md에 "커밋 메시지는 한국어" 규칙 추가. Task 8은 API 키 발급 대기로 보류.
+- 2026-11-12: 사용자 API 키 발급 완료. 처음 `export`로 입력해 셸 히스토리에 남았을 수 있어 사용자가 직접 히스토리 정리(사용자 결정, 키 재발급은 안 함). Task 8 진행 순서를 `read -s` 방식으로 변경.
