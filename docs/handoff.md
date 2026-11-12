@@ -6,7 +6,7 @@
 - 기능: 자연어("주문 관련 메시지 세팅해줘") → Claude API가 카카오 알림톡 규칙에 맞는 템플릿 초안 생성 → 등록 폼 자동 채움. 수작업으로는 카카오 제공 유형 전부 설정 가능.
 - git: 브랜치 `feature/nl-template-generation` (main에는 초기 커밋만). 원격 저장소 없음.
 - 구현 계획 Task 1~7 완료, **Task 8(실제 Claude 호출 확인) 미실행** — 사용자 API 키 필요.
-- 테스트: 자동 테스트 41개 중 40개 통과, 1개 skip(실제 Claude 호출 테스트). 가짜 LLM 모드 + 헤드리스 Chrome 화면 확인 41항목 통과.
+- 테스트: 서버 자동 테스트 49개 중 48개 통과, 1개 skip(실제 Claude 호출 테스트). 화면 자동 점검(`src/test/ui/`) 47항목 통과.
 - 실제 Claude API는 아직 한 번도 호출하지 않았다(테스트·화면 확인은 모두 가짜 LLM).
 
 ### 주요 파일
@@ -19,11 +19,13 @@
 | `src/main/java/com/alimtalk/` | `rules/`(규칙 로드·점검), `llm/`(Claude 연동·프롬프트·가짜 LLM), `template/`(생성 서비스·API) |
 | `src/main/resources/static/index.html` | 화면(원본 시안 `alimtalk-template.html`을 고친 것, 원본은 그대로 둠) |
 | `.claude/agents/` | 프로젝트 에이전트: architect, developer, code-reviewer(model: fable), test |
-| `.superpowers/sdd/2026-11-12-nl-alimtalk-template/` | 구현 진행 기록(ledger)·화면 확인 스크립트(`verify.html`, `verify.sh`). git 제외 |
+| `src/test/ui/` | 화면 자동 점검 도구(`verify.html` 점검 항목, `verify.sh` 실행기, `README.md`). 가짜 LLM 서버(8081)를 띄운 뒤 `src/test/ui/verify.sh` |
+| `.superpowers/sdd/2026-11-12-nl-alimtalk-template/` | 구현 진행 기록(ledger). git 제외 |
 
 ### 실행 방법
 - 실제 Claude: `export ANTHROPIC_API_KEY=...` 후 `./gradlew bootRun` → http://localhost:8080
 - 가짜 LLM: `SPRING_PROFILES_ACTIVE=fake-llm ./gradlew bootRun` (요청에 "위반"→규칙 위반, "광고"→거절, 그 외→주문완료 고정 응답)
+- 화면 점검: `SPRING_PROFILES_ACTIVE=fake-llm ./gradlew bootRun --args='--server.port=8081'` 후 `src/test/ui/verify.sh`
 - 테스트: `./gradlew test` / 실제 호출 테스트: `LIVE_LLM_TEST=true ./gradlew test --tests '*ClaudeLlmClientLiveTest'`(비용 발생)
 
 ## 결정 사항
@@ -52,6 +54,9 @@
 - API 키: 개인 Claude Console 발급, 환경변수 `ANTHROPIC_API_KEY`로만 사용.
 - 시간 제한: 호출당 60초, 요청 전체 120초. SDK 재시도는 그대로 둔다(사용자 결정) — 60초 초과 시 백그라운드 재요청으로 추가 과금 가능. 바꾸려면 `ClaudeLlmClient`에서 `maxRetries(0)`.
 - 서버측 refusal fallback은 Java SDK에 문서화된 방법이 없어 미적용.
+- Claude 응답의 상태·메시지 유형·강조 유형은 enum(구조화 출력 스키마에서 허용값만). 화면 계약(TemplateDraft)은 문자열 유지.
+- 채널: 등록된 3개만 이름을 프롬프트에 넣고, 미등록 값은 빈 이름, 50자 초과는 400.
+- API 키가 없으면 서버 시작 시 WARN 로그, 생성 요청은 502(LLM_ERROR).
 
 ## 미결정 사항 (사용자 확인 필요)
 - 딜러사(발송 대행사) 선정 → 규칙 수치·아이템리스트 규격 확정
@@ -61,7 +66,7 @@
 
 ## 다음 작업
 1. Task 8: 사용자 API 키로 실제 Claude 호출 확인(응답 시간·재시도 횟수·토큰/캐시 사용량 기록, effort 조정 판단)
-2. 보류된 사소한 지적 처리 여부 결정 — 1차 리뷰 7건 + 2차 리뷰 5건(4·5·6·7·9번), 목록은 ledger(`progress.md`)의 `minor (deferred)`
+2. 남은 보류 지적 2건(이전 버전 저장값 때문의 불필요한 확인 창, 저장 데이터 일부 손상 시 보정) 처리 여부 결정
 3. 브랜치를 main에 합칠지 결정
 
 ## 작업 이력
@@ -71,3 +76,4 @@
 - 2026-11-12: 사용자 요청으로 수작업 기능 복원(메시지 유형 4종, 강조 유형 4종 + 아이템리스트형 신규, 버튼), 자동 작성 범위 안내 추가, 채널추가 문구 변경.
 - 2026-11-12: CLAUDE.md에 "코드 변경·작업 전 사용자 확인" 규칙 추가. 프로젝트 에이전트 4종(`.claude/agents/`) 생성 — 세션 재시작 후 인식 확인.
 - 2026-11-12: 2차 코드 리뷰(code-reviewer 에이전트, 리뷰 이후 변경분): Critical 0, Important 0, Minor 9. 사용자 선택으로 1(하이라이트 변수 글자 모양)·2(자동 작성 시 이미지 비우기)·3(버튼 초과 표시)·8(버튼·아이템리스트 제한값 규칙 파일 이동) 수정. CLAUDE.md에 "선택형 질문으로 확인" 규칙 추가. handoff 재정리.
+- 2026-11-12: 보류 지적 중 사용자 선택 항목 처리 — 덮어쓰기 취소 시 결과 보관, 자연어 글자 수 기준, 특수문자 변수명, 유형 값 enum 강제, 채널 값 제한, API 키 없을 때 경고·502 통일. 화면 점검 도구를 `src/test/ui/`로 옮기고 test 에이전트 지침 연결. 커밋 메시지는 한국어로 작성(사용자 요청).
