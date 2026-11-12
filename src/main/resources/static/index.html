@@ -440,13 +440,19 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     return list;
   }
 
+  /* 예시값 조회: 'constructor' 같은 내장 이름이 Object 속성으로 잡히지 않도록 자기 속성만 본다 */
+  const sampleOf = (v) => Object.hasOwn(state.samples, v) ? state.samples[v] : "";
+  /* 변수 이름은 원문으로 찾고(특수문자 포함), 출력할 때만 escape 한다 */
   function renderText(s){
-    const show = $("showSample").checked;
-    return esc(s).replace(/#\{([^{}]*)\}/g, (m, v) => {
-      const val = state.samples[v];
-      if (show && val) return `<span class="vfill">${esc(val)}</span>`;
-      return `<span class="vtag">#{${v}}</span>`;
-    });
+    const show = $("showSample").checked, str = String(s || "");
+    let out = "", last = 0;
+    for (const m of str.matchAll(VAR_RE)){
+      out += esc(str.slice(last, m.index));
+      const val = sampleOf(m[1]);
+      out += (show && val) ? `<span class="vfill">${esc(val)}</span>` : `<span class="vtag">#{${esc(m[1])}}</span>`;
+      last = m.index + m[0].length;
+    }
+    return out + esc(str.slice(last));
   }
 
   /* ---------- form <-> state ---------- */
@@ -580,7 +586,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     $("varCount").textContent = `(${vs.length}/${LIMIT.vars})`;
     if (!vs.length){ box.innerHTML = `<div class="empty">본문에 #{변수명}을 넣으면 여기에 예시값 입력칸이 생깁니다.</div>`; return; }
     const focused = document.activeElement && document.activeElement.dataset.var;
-    box.innerHTML = vs.map((v,i) => `<div class="var-row"><span class="var-tag" title="#{${esc(v)}}">#{${esc(v)}}</span><input type="text" id="var${i}" data-var="${esc(v)}" value="${esc(state.samples[v]||"")}" placeholder="예시값 입력" aria-label="${esc(v)} 예시값"></div>`).join("");
+    box.innerHTML = vs.map((v,i) => `<div class="var-row"><span class="var-tag" title="#{${esc(v)}}">#{${esc(v)}}</span><input type="text" id="var${i}" data-var="${esc(v)}" value="${esc(sampleOf(v))}" placeholder="예시값 입력" aria-label="${esc(v)} 예시값"></div>`).join("");
     box.querySelectorAll("input").forEach(inp => inp.addEventListener("input", e => { state.samples[e.target.dataset.var] = e.target.value; save(); renderPreview(); }));
     if (focused){ const el = box.querySelector(`[data-var="${CSS.escape(focused)}"]`); if (el){ el.focus(); el.selectionStart = el.selectionEnd = el.value.length; } }
   }
@@ -712,16 +718,17 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
       const data = await res.json().catch(() => ({}));
       if (res.ok){
         const applied = applyDraft(data.draft);
-        const items = applied ? [["ok", `템플릿을 작성했습니다. (시도 ${data.attempts}회)`]] : [["w", "덮어쓰기를 취소했습니다."]];
+        const items = applied ? [["ok", `템플릿을 작성했습니다. (시도 ${data.attempts}회)`]]
+          : [["w", "덮어쓰기를 취소했습니다. 생성 결과는 보관해 두었으니 [폼에 채우기]로 다시 채울 수 있습니다."]];
         (data.warnings || []).forEach(w => items.push(["w", w]));
         showStatus(items);
+        if (!applied) offerPending(data.draft, false);
       } else if (res.status === 422 && data.reason === "RULE_VIOLATION"){
-        pendingDraft = data.draft;
+        offerPending(data.draft, true);
         const items = [["e", data.message || "규칙을 모두 맞추지 못했습니다."]];
         (data.errors || []).forEach(e => items.push(["e", e]));
         (data.warnings || []).forEach(w => items.push(["w", w]));
         showStatus(items);
-        $("nlViolationActions").hidden = false;
       } else {
         showStatus([["e", data.message || "템플릿 생성 중 오류가 발생했습니다."]]);
       }
@@ -735,19 +742,29 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
 
   $("nlGenerate").addEventListener("click", generate);
   $("nlRetry").addEventListener("click", generate);
+  /* 아직 폼에 넣지 않은 생성 결과를 보관하고 [폼에 채우기] 버튼을 보여 준다 (규칙 위반 결과 또는 덮어쓰기 취소) */
+  let pendingIsViolation = false;
+  function offerPending(draft, isViolation){
+    pendingDraft = draft;
+    pendingIsViolation = isViolation;
+    $("nlApplyAnyway").textContent = isViolation ? "그래도 폼에 채우기" : "폼에 채우기";
+    $("nlViolationActions").hidden = false;
+  }
   $("nlApplyAnyway").addEventListener("click", () => {
     if (!pendingDraft) return;
     if (applyDraft(pendingDraft)){
       $("nlViolationActions").hidden = true;
       pendingDraft = null;
-      toast("폼에 채웠습니다. 위 오류 항목을 직접 고쳐 주세요.");
+      toast(pendingIsViolation ? "폼에 채웠습니다. 위 오류 항목을 직접 고쳐 주세요." : "폼에 채웠습니다.");
     }
   });
-  $("nlPrompt").addEventListener("input", () => counter("cntPrompt", $("nlPrompt").value, LIMIT.prompt));
+  /* textarea maxlength·서버 검증과 같은 기준(UTF-16 길이)으로 센다 */
+  function promptCounter(){ const n = $("nlPrompt").value.length, el = $("cntPrompt"); el.textContent = `${n}/${LIMIT.prompt}`; el.classList.toggle("over", n > LIMIT.prompt); }
+  $("nlPrompt").addEventListener("input", promptCounter);
 
   let tt; function toast(msg){ const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 2200); }
 
-  fillForm(); update(); counter("cntPrompt", "", LIMIT.prompt);
+  fillForm(); update(); promptCounter();
 })();
 </script>
 </body>

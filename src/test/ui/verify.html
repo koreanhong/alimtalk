@@ -135,6 +135,32 @@ f.addEventListener("load", async () => {
   rec("reset restores sample", $("content").value.includes("주문이 정상적으로") && $("nlStatus").textContent === "", "");
   rec("reset restores sample buttons", $("btnList").querySelectorAll(".btn-item").length === 2, "");
 
+  // [덮어쓰기 취소 시 결과 보관] 수정된 폼에서 생성 → 취소 → [폼에 채우기]로 다시 채울 수 있어야 함
+  $("resetBtn").click();
+  $("tplName").value = "직접 수정"; $("tplName").dispatchEvent(new w.Event("input"));
+  w.confirm = () => false;
+  $("nlPrompt").value = "주문 관련 메시지 세팅해줘"; $("nlGenerate").click();
+  await sleep(1500);
+  rec("cancel keeps form", $("tplName").value === "직접 수정", $("tplName").value);
+  rec("cancel offers apply later", !$("nlViolationActions").hidden && /폼에 채우기/.test($("nlApplyAnyway").textContent), $("nlApplyAnyway").textContent);
+  w.confirm = () => true;
+  $("nlApplyAnyway").click();
+  await sleep(300);
+  rec("apply after cancel fills form", $("content").value.startsWith("[주문완료 안내]") && $("nlViolationActions").hidden, $("content").value.slice(0, 15));
+
+  // [자연어 글자 수 표시] 카운터가 입력 제한(maxlength)과 같은 기준(UTF-16)으로 센다
+  $("nlPrompt").value = "주문😀"; $("nlPrompt").dispatchEvent(new w.Event("input"));
+  rec("prompt counter matches maxlength units", $("cntPrompt").textContent === $("nlPrompt").value.length + "/500", $("cntPrompt").textContent + " vs len " + $("nlPrompt").value.length);
+
+  // [특수문자 변수명] 이름에 < 가 있어도, 'constructor' 같은 이름이어도 예시값이 바르게 나온다
+  $("resetBtn").click();
+  d.querySelector("input[name=emph][value=NONE]").click();
+  $("content").value = "안내 #{a<b} / #{constructor}"; $("content").dispatchEvent(new w.Event("input"));
+  const sv = $("vars").querySelector('[data-var="a<b"]');
+  if (sv) { sv.value = "특수값"; sv.dispatchEvent(new w.Event("input")); }
+  rec("special-char variable shows sample", $("pvBubble").textContent.includes("특수값"), $("pvBubble").textContent.slice(0, 60));
+  rec("builtin-name variable not filled", !/function|native code/.test($("pvBubble").textContent) && $("pvBubble").textContent.includes("#{constructor}"), $("pvBubble").textContent.slice(0, 80));
+  $("resetBtn").click();
   } catch (e) { rec("harness error", false, String(e)); }
   rec("no js errors", errors.length === 0, errors.join(" | "));
   document.getElementById("out").textContent = "DONE " + JSON.stringify(results);
