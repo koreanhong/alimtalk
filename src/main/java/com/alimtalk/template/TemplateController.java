@@ -16,8 +16,8 @@ public class TemplateController {
 
     /** 화면의 발신 채널 선택지와 같다. 채널은 사용자가 고르며 LLM에는 표시명만 전달한다. */
     private static final Map<String, String> CHANNEL_NAMES = Map.of(
-            "@mystore", "마이스토어",
-            "@hotvpn", "HotVPN",
+            "@mystore", "아디다스",
+            "@hotvpn", "PMK",
             "@testchannel", "테스트채널");
 
     private final TemplateGenerationService service;
