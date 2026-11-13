@@ -6,15 +6,35 @@
 const results = [];
 const errors = [];
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-const rec = (name, pass, detail) => results.push({ name, pass, detail });
+const rec = (name, pass, detail) => results.push({ name, pass: !!pass, detail: String(detail == null ? "" : detail) });
 const f = document.getElementById("f");
 f.addEventListener("load", async () => {
   const w = f.contentWindow, d = w.document, $ = (id) => d.getElementById(id);
   w.addEventListener("error", e => errors.push(String(e.message)));
   try { w.localStorage.clear(); } catch (e) {}
   await sleep(500);
-  try {
 
+  /* ---------- 공통 도구 ---------- */
+  const q = (sel, root) => (root || d).querySelector(sel);
+  const qa = (sel, root) => [...(root || d).querySelectorAll(sel)];
+  const shown = (el) => w.getComputedStyle(el).display !== "none";
+  /* 화면에 실제로 보이는지 (hidden 속성·display·부모 숨김 모두 반영) */
+  const vis = (el) => !!el && !el.hidden && w.getComputedStyle(el).display !== "none" && w.getComputedStyle(el).visibility !== "hidden" && el.getClientRects().length > 0;
+  const txt = (el) => el ? el.textContent.replace(/\s+/g, " ").trim() : "";
+  async function waitFor(fn, ms = 3000){
+    const t0 = Date.now();
+    while (Date.now() - t0 < ms){ try { if (fn()) return true; } catch (e) {} await sleep(50); }
+    return false;
+  }
+  const need = (el, what) => { if (!el) throw new Error(what + " 없음"); return el; };
+  /* 블록 하나가 예외로 멈춰도 그 블록의 항목은 FAIL로 기록하고 다음 블록으로 넘어간다 */
+  async function block(names, fn){
+    const start = results.length;
+    let err = null;
+    try { await fn(); } catch (e) { err = e; }
+    const done = new Set(results.slice(start).map(r => r.name));
+    for (const n of names) if (!done.has(n)) rec(n, false, err ? "error: " + (err.message || err) : "not checked");
+  }
   async function fakeImage(input){
     const c = d.createElement("canvas"); c.width = 40; c.height = 40;
     const blob = await new Promise(r => c.toBlob(r, "image/png"));
@@ -22,8 +42,81 @@ f.addEventListener("load", async () => {
     input.files = dt.files; input.dispatchEvent(new w.Event("change"));
     await sleep(300);
   }
-  const shown = (el) => w.getComputedStyle(el).display !== "none";
-  rec("violation actions not visible on load", !shown($("nlViolationActions")), w.getComputedStyle($("nlViolationActions")).display);
+
+  /* fetch 감시: /api/templates/chat 요청 본문을 기록하고, 필요하면 지연·오류 응답으로 바꾼다 (서버 코드는 그대로) */
+  const chatReqs = [];
+  let generateCalls = 0;
+  let fetchHook = null;
+  const realFetch = w.fetch.bind(w);
+  w.fetch = (url, opts) => {
+    const u = String((url && url.url) || url);
+    if (u.includes("/api/templates/generate")) generateCalls++;
+    if (u.includes("/api/templates/chat")){
+      try { chatReqs.push(JSON.parse(opts && opts.body)); } catch (e) { chatReqs.push(null); }
+      if (fetchHook) return fetchHook(url, opts);
+    }
+    return realFetch(url, opts);
+  };
+  const lastReq = () => chatReqs[chatReqs.length - 1];
+
+  /* 챗봇 도구 (선택자는 구현 계획 Task 5 "화면 요소 약속" 표 기준) */
+  const bots = () => qa("#chatLog .chat-msg.bot");
+  const users = () => qa("#chatLog .chat-msg.user");
+  const lastBot = () => bots().slice(-1)[0];
+  const lastUser = () => users().slice(-1)[0];
+  const loadingShown = () => vis($("chatLoading"));
+  const enabledChoices = () => qa(".chat-choice").filter(b => !b.disabled).map(b => txt(b));
+  const waitReply = (n) => waitFor(() => bots().length > n && !loadingShown());
+  async function openChat(){
+    if (!vis($("chatWin"))) need($("chatFab"), "#chatFab").click();
+    await sleep(100);
+    if (!vis($("chatWin"))) throw new Error("#chatWin 이 열리지 않음");
+  }
+  async function newChat(){
+    w.confirm = () => true;
+    await openChat();
+    need($("chatNew"), "#chatNew").click();
+    await sleep(150);
+  }
+  function typeInput(text){
+    const inp = need($("chatInput"), "#chatInput");
+    inp.value = text; inp.dispatchEvent(new w.Event("input", { bubbles: true }));
+  }
+  async function say(text){
+    typeInput(text);
+    const n = bots().length;
+    need($("chatSend"), "#chatSend").click();
+    if (!await waitReply(n)) throw new Error("응답 말풍선이 나타나지 않음: " + text);
+  }
+  async function clickChoice(label){
+    const b = qa(".chat-choice").find(x => !x.disabled && txt(x) === label);
+    need(b, "선택지 [" + label + "]");
+    const n = bots().length;
+    b.click();
+    if (!await waitReply(n)) throw new Error("선택지 클릭 후 응답 없음: " + label);
+  }
+  async function clickStart(sel){
+    const b = need(q(sel), sel);
+    const n = bots().length;
+    b.click();
+    if (!await waitReply(n)) throw new Error("시작 선택지 클릭 후 응답 없음: " + sel);
+  }
+  function resetForm(){ w.confirm = () => true; $("resetBtn").click(); }
+
+  try {
+  const SAMPLE_CONTENT = $("content").value;
+
+  /* ---------- 0) 첫 화면: 챗봇은 닫혀 있고 왼쪽 아래 버튼만 보인다 ---------- */
+  await block(["fabShownChatClosed"], async () => {
+    const fab = $("chatFab"), win = $("chatWin");
+    const r = fab && fab.getBoundingClientRect();
+    rec("fabShownChatClosed", vis(fab) && !vis(win) && w.getComputedStyle(fab).position === "fixed" && r.left < 120 && w.innerHeight - r.bottom < 120,
+      "fab=" + vis(fab) + " win=" + vis(win) + (r ? " pos=" + w.getComputedStyle(fab).position + " left=" + Math.round(r.left) + " bottomGap=" + Math.round(w.innerHeight - r.bottom) : ""));
+  });
+  rec("oldNlCardRemoved", ["nlPrompt", "nlGenerate", "nlStatus", "nlViolationActions", "nlScope", "nlApplyAnyway", "nlRetry"].every(id => !$(id)),
+    ["nlPrompt", "nlGenerate", "nlStatus", "nlViolationActions", "nlScope", "nlApplyAnyway", "nlRetry"].filter(id => $(id)).join(",") || "removed");
+
+  /* ---------- 수작업 기능 (기존 항목 유지) ---------- */
   w.document.querySelector("input[name=emph][value=NONE]").click();
   rec("emph text row not visible when NONE", !shown($("emphText")), w.getComputedStyle($("emphText")).display);
   w.document.querySelector("input[name=msgType][value=BA]").click();
@@ -33,7 +126,6 @@ f.addEventListener("load", async () => {
   rec("all emph types", [...d.querySelectorAll("input[name=emph]")].map(r => r.value).join(",") === "NONE,TEXT,IMAGE,ITEM_LIST", "");
   rec("button section exists", !!$("btnList") && !!$("addBtn"), "");
   rec("no review section", !$("result") && !$("payload") && !d.querySelector("button[type=submit]"), "");
-  rec("auto-fill scope notice", /기본형/.test($("nlScope").textContent) && /부가정보형/.test($("nlScope").textContent) && /버튼/.test($("nlScope").textContent) && /아이템리스트형/.test($("nlScope").textContent), $("nlScope") ? $("nlScope").textContent : "missing");
   d.querySelector("input[name=msgType][value=AD]").click();
   rec("AD shows channel-add in preview", $("pvBubble").textContent.includes("채널 추가"), "");
   rec("AD channel-add text", $("pvBubble").textContent.includes("채널 추가하고 이 채널의 광고와 마케팅 메시지 받기"), "");
@@ -72,85 +164,316 @@ f.addEventListener("load", async () => {
   rec("preview rendered", $("pvBubble").textContent.includes("주문이 정상적으로"), $("pvBubble").textContent.slice(0, 40));
   rec("limits from /api/rules (vars 30)", $("varCount").textContent.includes("/30"), $("varCount").textContent);
 
-  // 1) 기본 생성 (폼이 예시 그대로 → 확인 창 없이 덮어씀)
-  let confirmCalls = 0;
-  w.confirm = () => { confirmCalls++; return true; };
-  d.querySelector("input[name=emph][value=ITEM_LIST]").click();
-  await fakeImage($("itImg")); await fakeImage($("itThumb"));
-  d.querySelector("input[name=emph][value=IMAGE]").click();
-  await fakeImage($("emImg"));
-  $("resetBtn").click(); // 텍스트는 예시로 돌리되 이미지는 초기화되므로 다시 넣는다
-  d.querySelector("input[name=emph][value=ITEM_LIST]").click();
-  await fakeImage($("itImg")); await fakeImage($("itThumb"));
-  d.querySelector("input[name=emph][value=TEXT]").click();
-  $("nlPrompt").value = "주문 관련 메시지 세팅해줘";
-  $("nlGenerate").click();
-  await sleep(1500);
-  d.querySelector("input[name=emph][value=ITEM_LIST]").click();
-  rec("generate clears item images", !$("pvBubble").querySelector("img") && $("itImg").value === "" && $("itThumb").value === "" && $("cntItHlTitle").textContent === "0/30", "img=" + !!$("pvBubble").querySelector("img") + " itImg=" + $("itImg").value + " cnt=" + $("cntItHlTitle").textContent);
-  d.querySelector("input[name=emph][value=NONE]").click();
-  rec("generate fills form", $("content").value.startsWith("[주문완료 안내]") && $("extraWrap").hidden === false, $("content").value.slice(0, 20));
-  rec("generate clears buttons", $("btnList").querySelectorAll(".btn-item").length === 0, "items=" + $("btnList").querySelectorAll(".btn-item").length);
-  rec("no confirm when form untouched", confirmCalls === 0, "calls=" + confirmCalls);
-  rec("success status", $("nlStatus").textContent.includes("작성했습니다"), $("nlStatus").textContent);
-  rec("preview updated", $("pvBubble").textContent.includes("홍길동"), "");
+  /* ---------- 1) 챗봇 열기: 왼쪽 아래, 미리보기와 겹치지 않음 ---------- */
+  await block(["fabOpensChatBottomLeft", "chatHeaderHasTitleAndButtons", "startButtonsShown", "chatScopeNotice"], async () => {
+    need($("chatFab"), "#chatFab").click();
+    await sleep(150);
+    const win = need($("chatWin"), "#chatWin"), r = win.getBoundingClientRect(), p = q(".preview").getBoundingClientRect();
+    const overlap = !(r.right <= p.left || p.right <= r.left || r.bottom <= p.top || p.bottom <= r.top);
+    rec("fabOpensChatBottomLeft",
+      vis(win) && !vis($("chatFab")) && w.getComputedStyle(win).position === "fixed" && r.left >= 0 && r.left <= 40 && r.top >= 0 && w.innerHeight - r.bottom >= 0 && w.innerHeight - r.bottom <= 40 && r.width >= 320 && r.width <= 440 && !overlap,
+      `win=${vis(win)} fab=${vis($("chatFab"))} rect=${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} bottomGap=${Math.round(w.innerHeight - r.bottom)} previewLeft=${Math.round(p.left)} overlap=${overlap}`);
+    rec("chatHeaderHasTitleAndButtons", txt(win).includes("알림톡 자동완성") && vis($("chatNew")) && vis($("chatMin")) && vis($("chatClose")) && vis($("chatInput")) && vis($("chatSend")) && !!$("chatLog") && !loadingShown(),
+      `new=${vis($("chatNew"))} min=${vis($("chatMin"))} close=${vis($("chatClose"))} input=${vis($("chatInput"))} send=${vis($("chatSend"))} loading=${loadingShown()}`);
+    const starts = qa(".chat-start[data-say]").filter(vis);
+    const want = ["주문 완료", "주문 취소", "배송 시작", "예약 확정", "회원가입", "인증번호"];
+    const polish = q(".chat-start[data-polish]");
+    rec("startButtonsShown",
+      txt(win).includes("어떤 알림톡 메시지를 만들까요?") && starts.map(txt).join(",") === want.join(",")
+        && starts.every(b => b.dataset.say === txt(b) + " 안내 메시지" && !b.disabled)
+        && vis(polish) && /다듬기/.test(txt(polish)) && !polish.disabled,
+      "starts=" + starts.map(b => txt(b) + "→" + b.dataset.say).join(" / ") + " polish=" + (polish ? txt(polish) + (polish.disabled ? "(disabled)" : "") : "없음"));
+    const sc = $("chatScope");
+    rec("chatScopeNotice", vis(sc) && win.contains(sc) && /기본형/.test(txt(sc)) && /부가정보형/.test(txt(sc)) && /버튼/.test(txt(sc)) && /이미지/.test(txt(sc)) && /아이템리스트/.test(txt(sc)),
+      sc ? txt(sc) : "missing");
+  });
 
-  // 2) 수정 후 재생성 → 확인 창, 취소 시 유지
-  $("tplName").value = "직접 수정한 이름";
-  $("tplName").dispatchEvent(new w.Event("input"));
-  w.confirm = () => { confirmCalls++; return false; };
-  $("nlGenerate").click();
-  await sleep(1500);
-  rec("confirm shown on edited form", confirmCalls === 1, "calls=" + confirmCalls);
-  rec("cancel keeps form", $("tplName").value === "직접 수정한 이름", $("tplName").value);
+  /* ---------- 2) 예시가 채워진 첫 화면에서 새 메시지 요청 → 새로 만들기로 폼 채움 ---------- */
+  await block(["newRequestOnSampleFormFillsForm", "chatDraftClearsButtonsAndImages", "chatDraftUpdatesPreview"], async () => {
+    let confirmCalls = 0;
+    resetForm();
+    d.querySelector("input[name=emph][value=ITEM_LIST]").click();
+    await fakeImage($("itImg")); await fakeImage($("itThumb"));
+    d.querySelector("input[name=emph][value=TEXT]").click(); // 텍스트 항목은 예시 그대로(덮어쓰기 확인 없음)
+    w.confirm = () => { confirmCalls++; return true; };
+    await openChat();
+    await say("배송 안내 만들어줘");
+    const req = lastReq();
+    rec("newRequestOnSampleFormFillsForm",
+      $("content").value.startsWith("[주문완료 안내]") && confirmCalls === 0 && txt(lastBot()).includes("주문 완료 안내를 작성했습니다")
+        && !!req && !!req.form && req.form.content === SAMPLE_CONTENT && txt(lastUser()).includes("배송 안내 만들어줘"),
+      "content=" + $("content").value.slice(0, 15) + " confirm=" + confirmCalls + " bot=" + txt(lastBot()).slice(0, 30) + " reqFormSample=" + !!(req && req.form && req.form.content === SAMPLE_CONTENT));
+    const btns = $("btnList").querySelectorAll(".btn-item").length;
+    d.querySelector("input[name=emph][value=ITEM_LIST]").click();
+    rec("chatDraftClearsButtonsAndImages", btns === 0 && !$("pvBubble").querySelector("img") && $("itImg").value === "" && $("itThumb").value === "" && $("cntItHlTitle").textContent === "0/30",
+      "buttons=" + btns + " img=" + !!$("pvBubble").querySelector("img") + " itImg=" + $("itImg").value + " cnt=" + $("cntItHlTitle").textContent);
+    d.querySelector("input[name=emph][value=NONE]").click();
+    rec("chatDraftUpdatesPreview", $("pvBubble").textContent.includes("홍길동") && $("extraWrap").hidden === false, $("pvBubble").textContent.slice(0, 40));
+  });
 
-  // 3) 규칙 위반
-  w.confirm = () => true;
-  $("nlPrompt").value = "위반 테스트";
-  $("nlGenerate").click();
-  await sleep(1500);
-  rec("violation actions visible", $("nlViolationActions").hidden === false, "");
-  rec("violation errors listed", $("nlStatus").textContent.includes("최대 1,000자"), $("nlStatus").textContent.slice(0, 80));
-  $("nlApplyAnyway").click();
+  /* ---------- 3) 시작 선택지 → 질문·선택지 → 선택지 클릭 → 폼 채움 ---------- */
+  await block(["startButtonAsksWithChoices", "choiceClickFillsForm", "oldChoicesDisabled", "chatRequestSendsHistoryAndForm"], async () => {
+    resetForm();
+    await newChat();
+    await clickStart('.chat-start[data-say="배송 시작 안내 메시지"]');
+    rec("startButtonAsksWithChoices",
+      txt(lastUser()).includes("배송 시작 안내 메시지") && txt(lastBot()).includes("어떤 정보를 넣을까요?")
+        && enabledChoices().join(",") === "택배사·송장번호,배송 예정일,상품명" && $("content").value === SAMPLE_CONTENT,
+      "user=" + txt(lastUser()) + " bot=" + txt(lastBot()).slice(0, 30) + " choices=" + enabledChoices().join(","));
+    w.confirm = () => true;
+    await clickChoice("배송 예정일");
+    rec("choiceClickFillsForm",
+      txt(lastUser()).includes("배송 예정일") && $("content").value.startsWith("[주문완료 안내]") && d.querySelector("input[name=msgType][value=EX]").checked,
+      "user=" + txt(lastUser()) + " content=" + $("content").value.slice(0, 15));
+    const disabled = qa(".chat-choice").filter(b => b.disabled).map(txt);
+    rec("oldChoicesDisabled",
+      ["택배사·송장번호", "배송 예정일", "상품명"].every(t => disabled.includes(t)) && enabledChoices().join(",") === "고객센터 안내 추가,이대로 완료",
+      "enabled=" + enabledChoices().join(",") + " disabled=" + disabled.join(","));
+    const req = lastReq(), m = (req && req.messages) || [];
+    rec("chatRequestSendsHistoryAndForm",
+      m.length === 3 && m.map(x => x.role).join(",") === "user,assistant,user" && m[0].text === "배송 시작 안내 메시지"
+        && m[1].text.includes("어떤 정보를 넣을까요?") && m[1].kind === "ASK" && m[2].text === "배송 예정일"
+        && req.channel === $("channel").value && !!req.form && req.form.content === SAMPLE_CONTENT && req.form.msgType === "EX",
+      JSON.stringify(m).slice(0, 160) + " channel=" + (req && req.channel));
+  });
+
+  /* ---------- 4) 접기·닫기는 창만 숨기고 대화 유지 ---------- */
+  await block(["minimizeKeepsConversation"], async () => {
+    await openChat();
+    const nu = users().length, nb = bots().length;
+    need($("chatMin"), "#chatMin").click(); await sleep(100);
+    const minHidden = !vis($("chatWin")) && vis($("chatFab"));
+    $("chatFab").click(); await sleep(100);
+    const afterMin = vis($("chatWin")) && users().length === nu && bots().length === nb;
+    need($("chatClose"), "#chatClose").click(); await sleep(100);
+    const closeHidden = !vis($("chatWin")) && vis($("chatFab"));
+    $("chatFab").click(); await sleep(100);
+    const afterClose = vis($("chatWin")) && users().length === nu && bots().length === nb && enabledChoices().length === 2;
+    rec("minimizeKeepsConversation", nu > 0 && minHidden && afterMin && closeHidden && afterClose,
+      `users=${nu} minHidden=${minHidden} afterMin=${afterMin} closeHidden=${closeHidden} afterClose=${afterClose}`);
+  });
+
+  /* ---------- 5) 응답 대기 중 입력·버튼 잠금 (fetch를 1.5초 지연) ---------- */
+  await block(["inputLockedWhileWaiting"], async () => {
+    w.confirm = () => true;
+    await openChat();
+    fetchHook = async (url, opts) => { await sleep(1500); return realFetch(url, opts); };
+    const nReq = chatReqs.length, nb = bots().length;
+    const choice = qa(".chat-choice").find(b => !b.disabled && txt(b) === "이대로 완료");
+    need(choice, "선택지 [이대로 완료]").click();
+    await sleep(300);
+    const ld = $("chatLoading");
+    const lockedNow = vis(ld) && /작성 중/.test(txt(ld)) && $("chatInput").disabled && $("chatSend").disabled
+      && qa(".chat-start").length > 0 && qa(".chat-start").every(b => b.disabled)
+      && qa(".chat-choice").every(b => b.disabled);
+    const detail = `loading=${vis(ld)}(${txt(ld)}) input=${$("chatInput").disabled} send=${$("chatSend").disabled} starts=${qa(".chat-start").filter(b => !b.disabled).length} enabled choices=${enabledChoices().length}`;
+    // 잠긴 동안 다시 보내기·시작 버튼을 눌러도 요청이 늘지 않아야 한다
+    typeInput("중복 전송"); $("chatSend").click();
+    const st = q(".chat-start[data-say]"); if (st) st.click();
+    await waitReply(nb);
+    fetchHook = null;
+    await sleep(200);
+    const unlocked = !loadingShown() && !$("chatInput").disabled && !$("chatSend").disabled;
+    rec("inputLockedWhileWaiting", lockedNow && chatReqs.length === nReq + 1 && unlocked,
+      detail + ` requests=${chatReqs.length - nReq} unlockedAfter=${unlocked}`);
+    typeInput("");
+  });
+
+  /* ---------- 6) 새 대화: 대화를 지우고 시작 선택지부터 (폼은 그대로) ---------- */
+  await block(["newChatResets", "adRejectedShownInChat"], async () => {
+    const contentBefore = $("content").value;
+    await newChat();
+    const cleared = users().length === 0 && qa(".chat-choice").length === 0 && qa(".chat-start[data-say]").filter(vis).length === 6
+      && txt($("chatWin")).includes("어떤 알림톡 메시지를 만들까요?") && $("content").value === contentBefore;
+    const clearedDetail = `users=${users().length} choices=${qa(".chat-choice").length} starts=${qa(".chat-start[data-say]").filter(vis).length} formKept=${$("content").value === contentBefore}`;
+    await say("할인 광고 보내줘");
+    const req = lastReq();
+    rec("newChatResets", cleared && !!req && req.messages.length === 1, clearedDetail + " nextReqMessages=" + (req && req.messages.length));
+    const lb = lastBot();
+    rec("adRejectedShownInChat",
+      txt(lb).includes("광고를 보낼 수 없습니다") && !q(".chat-apply, .chat-apply-anyway", lb) && $("content").value === contentBefore
+        && users().length === 1 && !$("chatInput").disabled,
+      "bot=" + txt(lb).slice(0, 40) + " formKept=" + ($("content").value === contentBefore));
+  });
+
+  /* ---------- 7) 서버 오류(502/400)·네트워크 오류·빈 입력: 말풍선으로, 대화 유지 ---------- */
+  await block(["errorShownInChat", "networkErrorShownInChat", "blankInputNotSent"], async () => {
+    await openChat();
+    const json = (status, body) => Promise.resolve(new w.Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
+    const nu = users().length;
+    fetchHook = () => json(502, { reason: "LLM_ERROR", message: "테스트용 서버 오류입니다." });
+    await say("주문 완료 알림");
+    const ok502 = txt(lastBot()).includes("테스트용 서버 오류입니다.");
+    fetchHook = () => json(400, { reason: "BAD_REQUEST", message: "발화는 500자 이내로 입력해 주세요." });
+    await say("주문 취소 알림");
+    const ok400 = txt(lastBot()).includes("발화는 500자 이내로 입력해 주세요.");
+    rec("errorShownInChat", ok502 && ok400 && users().length === nu + 2 && !$("chatInput").disabled && !loadingShown(),
+      `502=${ok502} 400=${ok400} users=${nu}→${users().length} last=${txt(lastBot()).slice(0, 40)}`);
+    fetchHook = () => Promise.reject(new TypeError("Failed to fetch"));
+    const nb = bots().length;
+    await say("네트워크 테스트");
+    rec("networkErrorShownInChat", bots().length === nb + 1 && txt(lastBot()).length > 0 && users().length === nu + 3 && !$("chatInput").disabled && !loadingShown(),
+      "bot=" + txt(lastBot()).slice(0, 40));
+    fetchHook = null;
+    const nReq = chatReqs.length, nu2 = users().length;
+    typeInput("   ");
+    $("chatSend").click();
+    await sleep(300);
+    rec("blankInputNotSent", chatReqs.length === nReq && users().length === nu2, `requests+${chatReqs.length - nReq} users+${users().length - nu2}`);
+  });
+  fetchHook = null;
+
+  /* ---------- 8) "생성해줘" → 유형 질문·선택지 5개 → [배송 안내] (Enter로 보내기) ---------- */
+  await block(["enterKeySends", "createAsksTypeThenChoiceWorks"], async () => {
+    resetForm();
+    await newChat();
+    typeInput("템플릿 생성해줘");
+    const nb = bots().length;
+    $("chatInput").dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+    const viaEnter = await waitReply(nb);
+    rec("enterKeySends", viaEnter && txt(lastUser()).includes("템플릿 생성해줘"), "replied=" + viaEnter);
+    if (!viaEnter){ const n = bots().length; $("chatSend").click(); await waitReply(n); }
+    const asked = txt(lastBot()).includes("어떤 유형의 메시지인가요?") && enabledChoices().join(",") === "배송 안내,인증번호,주문 완료,예약 확정,회원가입";
+    const askedDetail = "bot=" + txt(lastBot()).slice(0, 30) + " choices=" + enabledChoices().join(",");
+    w.confirm = () => true;
+    await clickChoice("배송 안내");
+    rec("createAsksTypeThenChoiceWorks", asked && txt(lastUser()).includes("배송 안내") && $("content").value.startsWith("[주문완료 안내]"),
+      askedDetail + " content=" + $("content").value.slice(0, 15));
+  });
+
+  /* ---------- 9) 규칙 위반: [그래도 폼에 채우기]/[다시 생성] ---------- */
+  await block(["violationShowsApplyAnyway", "applyAnywayFillsForm"], async () => {
+    resetForm();
+    await newChat();
+    await say("위반 테스트");
+    const lb = lastBot(), any = q(".chat-apply-anyway", lb), retry = q(".chat-retry", lb);
+    rec("violationShowsApplyAnyway",
+      txt(lb).includes("최대 1,000자") && vis(any) && /그래도 폼에 채우기/.test(txt(any)) && vis(retry) && /다시 생성/.test(txt(retry)) && $("content").value === SAMPLE_CONTENT,
+      "bot=" + txt(lb).slice(0, 60) + " anyway=" + txt(any) + " retry=" + txt(retry) + " formKept=" + ($("content").value === SAMPLE_CONTENT));
+    w.confirm = () => true;
+    need(any, ".chat-apply-anyway").click();
+    await sleep(300);
+    rec("applyAnywayFillsForm", $("content").value.length > 1000 && $("cntContent").classList.contains("over"), "len=" + $("content").value.length + " " + $("cntContent").textContent);
+  });
+
+  /* ---------- 10) 수정된 폼에 새 초안 → 덮어쓰기 확인, 취소 시 유지 ---------- */
+  await block(["chatConfirmOnEditedForm", "chatCancelOverwriteKeepsForm"], async () => {
+    resetForm();
+    await newChat();
+    $("tplName").value = "직접 수정한 이름"; $("tplName").dispatchEvent(new w.Event("input"));
+    let calls = 0;
+    w.confirm = () => { calls++; return false; };
+    await say("주문 완료 알림 만들어줘");
+    rec("chatConfirmOnEditedForm", calls === 1, "calls=" + calls);
+    rec("chatCancelOverwriteKeepsForm", $("tplName").value === "직접 수정한 이름" && $("content").value === SAMPLE_CONTENT, $("tplName").value);
+    w.confirm = () => true;
+  });
+
+  /* ---------- 11) 다듬기: 결과를 말풍선에 보여 주고 [적용]/[취소] ---------- */
+  await block(["polishShowsApplyCancel", "polishCancelKeepsForm"], async () => {
+    resetForm();
+    await newChat();
+    await clickStart(".chat-start[data-polish]");
+    const lb = lastBot(), ap = q(".chat-apply", lb), cc = q(".chat-cancel", lb);
+    rec("polishShowsApplyCancel",
+      txt(lastUser()).includes("지금 폼을 다듬어줘") && txt(lb).includes("항목별로 정리했습니다.") && txt(lb).includes("안녕하세요")
+        && vis(ap) && vis(cc) && $("content").value === SAMPLE_CONTENT && lastReq().messages.slice(-1)[0].text === "지금 폼을 다듬어줘",
+      "user=" + txt(lastUser()) + " bot=" + txt(lb).slice(0, 60) + " apply=" + vis(ap) + " cancel=" + vis(cc) + " formKept=" + ($("content").value === SAMPLE_CONTENT));
+    need(cc, ".chat-cancel").click();
+    await sleep(300);
+    rec("polishCancelKeepsForm",
+      $("content").value === SAMPLE_CONTENT && $("tplName").value === "주문 완료 안내" && $("btnList").querySelectorAll(".btn-item").length === 2,
+      "content=" + $("content").value.slice(0, 15));
+  });
+
+  await block(["polishApplyKeepsButtonsAndItemList"], async () => {
+    resetForm();
+    await newChat();
+    const channel = $("channel").value;
+    d.querySelector("input[name=emph][value=ITEM_LIST]").click();
+    $("itHeader").value = "주문 내역"; $("itHeader").dispatchEvent(new w.Event("input"));
+    await fakeImage($("itImg"));
+    w.confirm = () => true;
+    await say("더 정중하게 다듬어줘");
+    const ap = need(q(".chat-apply", lastBot()), ".chat-apply");
+    ap.click();
+    await sleep(300);
+    const names = [...$("btnList").querySelectorAll(".btn-item")].map(b => (b.querySelector("[data-k=name]") || {}).value);
+    rec("polishApplyKeepsButtonsAndItemList",
+      $("content").value.startsWith("[주문완료 안내]") && names.join(",") === "주문 상세 보기,배송 조회"
+        && d.querySelector("input[name=emph][value=ITEM_LIST]").checked && $("itHeader").value === "주문 내역"
+        && $("itImg").value !== "" && $("channel").value === channel,
+      `content=${$("content").value.slice(0, 15)} buttons=${names.join(",")} itemList=${d.querySelector("input[name=emph][value=ITEM_LIST]").checked} header=${$("itHeader").value} img=${$("itImg").value !== ""}`);
+  });
+
+  /* ---------- 12) 본문이 비면 [지금 폼 다듬기] 비활성 ---------- */
+  await block(["polishStartDisabledWhenEmpty"], async () => {
+    resetForm();
+    await openChat();
+    const p = need(q(".chat-start[data-polish]"), ".chat-start[data-polish]");
+    $("content").value = ""; $("content").dispatchEvent(new w.Event("input"));
+    await sleep(100);
+    const off = p.disabled;
+    resetForm();
+    await sleep(100);
+    rec("polishStartDisabledWhenEmpty", off && !q(".chat-start[data-polish]").disabled, "emptyDisabled=" + off + " afterResetEnabled=" + !q(".chat-start[data-polish]").disabled);
+  });
+
+  /* ---------- 13) 대화 한도: 사용자 발화 10번(요청 messages 19개) 후 입력·선택지 잠금, 안내 #chatLimit, [새 대화]로 초기화 ---------- */
+  await block(["chatLimitHiddenBeforeTen", "chatLimitShownAfterTen", "chatLimitDisablesChoices", "chatLimitBlocksEleventhRequest", "chatLimitResetByNewChat"], async () => {
+    const LIMIT_TEXT = "대화가 길어졌어요. [새 대화]로 다시 시작해 주세요.";
+    const limitShown = () => vis($("chatLimit"));
+    resetForm();
+    await newChat();
+    w.confirm = () => true;
+    fetchHook = null;
+    for (let i = 1; i <= 9; i++) await say("배송 안내 만들어줘 " + i);
+    rec("chatLimitHiddenBeforeTen",
+      users().length === 9 && !limitShown() && !$("chatInput").disabled && !$("chatSend").disabled && enabledChoices().length > 0,
+      `users=${users().length} limitShown=${limitShown()} input=${$("chatInput").disabled} send=${$("chatSend").disabled} enabledChoices=${enabledChoices().length}`);
+    await say("배송 안내 만들어줘 10");
+    await sleep(200);
+    const req10 = lastReq(), m10 = (req10 && req10.messages) || [];
+    const lim = $("chatLimit");
+    rec("chatLimitShownAfterTen",
+      m10.length === 19 && m10[18].role === "user" && limitShown() && $("chatWin").contains(lim) && txt(lim).includes(LIMIT_TEXT)
+        && $("chatInput").disabled && $("chatSend").disabled,
+      `req10Messages=${m10.length} limitEl=${!!lim} shown=${limitShown()} text=${txt(lim).slice(0, 40)} input=${$("chatInput").disabled} send=${$("chatSend").disabled}`);
+    const choices = qa(".chat-choice"), starts = qa(".chat-start");
+    rec("chatLimitDisablesChoices",
+      choices.length > 0 && choices.every(b => b.disabled) && starts.length > 0 && starts.every(b => b.disabled),
+      `choices=${choices.length} enabledChoices=${choices.filter(b => !b.disabled).map(txt).join(",")} starts=${starts.length} enabledStarts=${starts.filter(b => !b.disabled).length}`);
+    // 한도 상태에서 보내기·Enter·선택지·시작 버튼을 눌러도 요청이 가지 않아야 한다 (disabled 여부와 상관없이 강제로 클릭)
+    const nReq = chatReqs.length, nu = users().length;
+    const inp = $("chatInput");
+    const wasDisabled = inp.disabled;
+    inp.disabled = false; typeInput("11번째 발화"); inp.disabled = wasDisabled;
+    $("chatSend").click();
+    inp.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+    for (const b of qa(".chat-choice, .chat-start")){ const dis = b.disabled; b.disabled = false; b.click(); b.disabled = dis; }
+    await sleep(800);
+    rec("chatLimitBlocksEleventhRequest", chatReqs.length === nReq && users().length === nu && !loadingShown(),
+      `requests+${chatReqs.length - nReq} users+${users().length - nu} loading=${loadingShown()}`);
+    inp.disabled = false; typeInput(""); inp.disabled = wasDisabled;
+    const shownBeforeNew = limitShown();
+    await newChat();
+    const resetOk = shownBeforeNew && !limitShown() && !$("chatInput").disabled && !$("chatSend").disabled && users().length === 0
+      && qa(".chat-start[data-say]").filter(vis).every(b => !b.disabled);
+    const resetDetail = `shownBeforeNew=${shownBeforeNew} limitShown=${limitShown()} input=${$("chatInput").disabled} send=${$("chatSend").disabled} users=${users().length}`;
+    const nReq2 = chatReqs.length;
+    await say("배송 안내 만들어줘");
+    rec("chatLimitResetByNewChat", resetOk && chatReqs.length === nReq2 + 1 && lastReq().messages.length === 1 && !limitShown(),
+      resetDetail + ` afterSendRequests+${chatReqs.length - nReq2} msgs=${lastReq() && lastReq().messages.length}`);
+  });
+  fetchHook = null;
+
+  rec("noGenerateApiCall", generateCalls === 0, "generate calls=" + generateCalls);
+
+  /* ---------- 초기화 (기존 항목 유지) ---------- */
+  resetForm();
   await sleep(300);
-  rec("apply anyway fills form", $("content").value.length > 1000, "len=" + $("content").value.length);
-  rec("content counter over", $("cntContent").classList.contains("over"), $("cntContent").textContent);
-  rec("errors still shown", $("nlStatus").textContent.includes("최대 1,000자"), "");
-
-  // 4) 광고
-  $("nlPrompt").value = "광고 보내줘";
-  $("nlGenerate").click();
-  await sleep(1500);
-  rec("ad message only", $("nlStatus").textContent.includes("광고를 보낼 수 없습니다") && $("nlViolationActions").hidden, $("nlStatus").textContent);
-
-  // 5) 빈 입력
-  $("nlPrompt").value = "   ";
-  $("nlGenerate").click();
-  await sleep(500);
-  rec("blank input message", $("nlStatus").textContent.includes("요청 내용을 입력"), $("nlStatus").textContent);
-
-  // 6) 초기화
-  $("resetBtn").click();
-  await sleep(300);
-  rec("reset restores sample", $("content").value.includes("주문이 정상적으로") && $("nlStatus").textContent === "", "");
+  rec("reset restores sample", $("content").value.includes("주문이 정상적으로"), "");
   rec("reset restores sample buttons", $("btnList").querySelectorAll(".btn-item").length === 2, "");
-
-  // [덮어쓰기 취소 시 결과 보관] 수정된 폼에서 생성 → 취소 → [폼에 채우기]로 다시 채울 수 있어야 함
-  $("resetBtn").click();
-  $("tplName").value = "직접 수정"; $("tplName").dispatchEvent(new w.Event("input"));
-  w.confirm = () => false;
-  $("nlPrompt").value = "주문 관련 메시지 세팅해줘"; $("nlGenerate").click();
-  await sleep(1500);
-  rec("cancel keeps form", $("tplName").value === "직접 수정", $("tplName").value);
-  rec("cancel offers apply later", !$("nlViolationActions").hidden && /폼에 채우기/.test($("nlApplyAnyway").textContent), $("nlApplyAnyway").textContent);
-  w.confirm = () => true;
-  $("nlApplyAnyway").click();
-  await sleep(300);
-  rec("apply after cancel fills form", $("content").value.startsWith("[주문완료 안내]") && $("nlViolationActions").hidden, $("content").value.slice(0, 15));
-
-  // [자연어 글자 수 표시] 카운터가 입력 제한(maxlength)과 같은 기준(UTF-16)으로 센다
-  $("nlPrompt").value = "주문😀"; $("nlPrompt").dispatchEvent(new w.Event("input"));
-  rec("prompt counter matches maxlength units", $("cntPrompt").textContent === $("nlPrompt").value.length + "/500", $("cntPrompt").textContent + " vs len " + $("nlPrompt").value.length);
 
   // [특수문자 변수명] 이름에 < 가 있어도, 'constructor' 같은 이름이어도 예시값이 바르게 나온다
   $("resetBtn").click();

@@ -163,16 +163,31 @@
 - Consumes: Task 4 API
 - 가짜 LLM 규칙(마지막 user 턴 기준, 기존 "광고"→거절·"위반"→1,100자 유지): "다듬" 포함 → OK/POLISH(현재 폼 본문을 "▶ " 항목 형태로 바꾼 초안, message "항목별로 정리했습니다.", choices ["더 짧게"]); 대화의 user 턴이 1개이고 "안내 메시지"로 끝남 → ASK("어떤 정보를 넣을까요?", ["택배사·송장번호","배송 예정일","상품명"]); 그 외 → OK/NEW 주문완료 초안(choices ["고객센터 안내 추가","이대로 완료"]).
 
-화면 동작(스펙 5.1~5.3):
-- 시작 버튼(고정, Claude 호출 없음): 주문 완료·주문 취소·배송 시작·예약 확정·회원가입·인증번호 → 발화 "<이름> 안내 메시지"; [지금 폼 다듬기] → 발화 "지금 폼을 다듬어줘"(본문 비면 비활성).
-- 발화 목록(사용자/시스템 말풍선), 최신 응답의 선택지만 활성, 직접 입력 + [보내기](Enter), [새 대화](기록 초기화, 시작 버튼 다시 표시), 처리 중 "작성 중…" + 입력·버튼 잠금, 기존 범위 안내(`#nlScope`) 유지.
-- 매 요청: `{messages, channel, form}`(form은 현재 폼 텍스트 항목). assistant 발화는 응답 `kind`와 함께 보관.
-- DRAFT·NEW: 기존 `applyDraft`(덮어쓰기 확인, 버튼·아이템리스트·이미지 비움) + 경고·위반 표시(위반 시 [그래도 폼에 채우기]/[다시 생성]).
+화면 동작(스펙 5.1~5.3, **5.1은 왼쪽 아래 챗봇으로 변경됨**):
+- 기존 폼 위 "자연어로 작성" 카드(`#nlPrompt`, `#nlGenerate`, `#nlStatus`, `#nlViolationActions` 등)와 `/generate` 호출 코드 제거. 범위 안내(`#nlScope`)는 챗봇 첫 인사 아래로 이동.
+- 왼쪽 아래 고정 동그란 버튼 `#chatFab`(💬) → 클릭 시 챗봇 창 `#chatWin`(왼쪽 아래, 약 380×560) 열림, 버튼은 숨김. 창 머리: 제목 "알림톡 자동완성", `#chatNew`[새 대화], `#chatMin`[−], `#chatClose`[×]. 접기·닫기는 창만 숨기고 대화 유지.
+- 창 안: 발화 목록 `#chatLog`(사용자/챗봇 말풍선), 시작 선택지(고정, Claude 호출 없음): 주문 완료·주문 취소·배송 시작·예약 확정·회원가입·인증번호 → 발화 "<이름> 안내 메시지"; [지금 폼 다듬기] → 발화 "지금 폼을 다듬어줘"(본문 비면 비활성). 입력 `#chatInput` + `#chatSend`(Enter). 최신 응답의 선택지만 활성. 처리 중 "작성 중…" + 입력·버튼 잠금.
+- 매 요청 `POST /api/templates/chat` `{messages, channel, form}`(form은 현재 폼 텍스트 항목). assistant 발화는 응답 `kind`와 함께 보관.
+- DRAFT·NEW: 기존 `applyDraft`(덮어쓰기 확인, 버튼·아이템리스트·이미지 비움) + 경고·위반을 챗봇 말풍선에 표시(위반 시 [그래도 폼에 채우기]/[다시 생성]).
 - DRAFT·POLISH: 폼에 바로 넣지 않고 말풍선에 요약 + 바뀐 본문 미리보기 + [적용]/[취소](위반이면 [그래도 적용]/[다시 다듬기]). [적용]은 텍스트 항목·예시값만 바꾸고 버튼·아이템리스트·이미지·채널 유지.
-- 400/502/504·네트워크 오류는 시스템 말풍선으로 메시지 표시, 대화는 유지.
-- 기존 자연어 카드 요소(`#nlPrompt`, `#nlGenerate` 등)와 `/generate` 호출 코드 제거.
+- REJECTED·400/502/504·네트워크 오류: 챗봇 말풍선으로 표시, 대화는 유지.
 
-- [ ] **Step 1: 실패 점검 항목 추가(verify.html)** — `startButtonsShown`, `startButtonAsksWithChoices`(배송 시작 클릭 → 질문·선택지 3개), `choiceClickFillsForm`(선택지 클릭 → 폼 본문 "[주문완료 안내]"…), `newRequestOnSampleFormFillsForm`(첫 화면에서 "배송 안내 만들어줘" 직접 입력 → NEW로 폼 채움), `oldChoicesDisabled`, `inputLockedWhileWaiting`, `polishShowsApplyCancel`, `polishCancelKeepsForm`, `polishApplyKeepsButtonsAndItemList`(버튼 2개·아이템리스트 헤더 입력 후 다듬기 적용 → 유지), `newChatResets`, `adRejectedShownInChat`, `errorShownInChat`(빈 입력 보내기 불가 또는 400 표시). 기존 nl* 항목은 대체·삭제.
+**화면 요소 약속(점검·구현 공통, 이 이름을 그대로 쓴다):**
+| 요소 | 선택자 | 비고 |
+|---|---|---|
+| 여는 버튼 | `#chatFab` | 왼쪽 아래 고정. 창이 열리면 숨김 |
+| 챗봇 창 | `#chatWin` | 왼쪽 아래(left·bottom 기준). 닫히면 숨김(`hidden`) |
+| 새 대화 / 접기 / 닫기 | `#chatNew` / `#chatMin` / `#chatClose` | 접기·닫기는 대화 유지 |
+| 발화 목록 | `#chatLog` | 말풍선: 사용자 `.chat-msg.user`, 챗봇 `.chat-msg.bot` |
+| 시작 선택지 | `.chat-start` (`data-say`에 보낼 발화) | "주문 완료"~"인증번호" 6개 + "지금 폼 다듬기"(`data-polish`) |
+| 응답 선택지 | `.chat-choice` | 가장 최근 챗봇 말풍선의 것만 `disabled` 아님 |
+| 입력 / 보내기 | `#chatInput` / `#chatSend` | Enter로도 보냄 |
+| 처리 중 표시 | `#chatLoading` | 응답 대기 중에만 보임, 그동안 `#chatInput`·`#chatSend`·`.chat-start`·`.chat-choice` 비활성 |
+| 다듬기 적용 / 취소 | `.chat-apply` / `.chat-cancel` | 다듬기 결과 말풍선 안 |
+| 위반 시 버튼 | `.chat-apply-anyway` / `.chat-retry` | 새로 만들기: "그래도 폼에 채우기"/"다시 생성", 다듬기: "그래도 적용"/"다시 다듬기" |
+| 범위 안내 | `#chatScope` | 첫 인사 아래 작은 글씨 |
+
+- [ ] **Step 1: 실패 점검 항목 추가(verify.html)** — `fabShownChatClosed`, `fabOpensChatBottomLeft`(창이 화면 왼쪽 아래, 미리보기와 겹치지 않음), `minimizeKeepsConversation`, `oldNlCardRemoved`, `startButtonsShown`, `startButtonAsksWithChoices`(배송 시작 클릭 → 질문·선택지 3개), `choiceClickFillsForm`(선택지 클릭 → 폼 본문 "[주문완료 안내]"…), `newRequestOnSampleFormFillsForm`(첫 화면에서 "배송 안내 만들어줘" 직접 입력 → NEW로 폼 채움), `oldChoicesDisabled`, `inputLockedWhileWaiting`, `polishShowsApplyCancel`, `polishCancelKeepsForm`, `polishApplyKeepsButtonsAndItemList`(버튼 2개·아이템리스트 헤더 입력 후 다듬기 적용 → 유지), `newChatResets`, `adRejectedShownInChat`, `errorShownInChat`(빈 입력 보내기 불가 또는 400 표시). 기존 nl* 항목은 대체·삭제.
 - [ ] **Step 2: 가짜 LLM 서버(8081) + `src/test/ui/verify.sh` → 새 항목 FAIL 확인**
 - [ ] **Step 3: 가짜 LLM 규칙 + 화면 구현**
 - [ ] **Step 4: `./gradlew test` PASS + 서버 재시작 후 `verify.sh` 전체 PASS + 스크린샷 1장 확인**

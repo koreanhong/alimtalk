@@ -170,6 +170,45 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
 .legend span{display:inline-flex;gap:6px;align-items:center}
 .sw{width:10px;height:10px;border-radius:2px;background:var(--var-bg);border:1px solid var(--var-fg)}
 
+/* chatbot (왼쪽 아래 고정. 오른쪽 미리보기를 가리지 않도록 너비 380px) */
+.chat-fab{position:fixed;left:max(24px,env(safe-area-inset-left,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:30;width:56px;height:56px;border-radius:50%;border:none;background:var(--accent);color:var(--accent-fg);font-size:24px;line-height:1;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.22);display:grid;place-items:center}
+.chat-fab:hover{filter:brightness(1.08)}
+.chat-win{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:30;width:380px;height:560px;max-width:calc(100vw - 32px);max-height:calc(100vh - 32px);display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.24);overflow:hidden}
+.chat-head{display:flex;align-items:center;gap:4px;padding:10px 10px 10px 16px;background:var(--accent);color:var(--accent-fg)}
+.chat-title{flex:1;font-weight:700;font-size:14px}
+.chat-head-btn{font:inherit;font-size:16px;line-height:1;min-width:30px;height:30px;padding:0 8px;border:none;border-radius:6px;background:transparent;color:inherit;cursor:pointer}
+.chat-head-btn.chat-new{font-size:12px;font-weight:600;border:1px solid color-mix(in srgb,currentColor 45%,transparent)}
+.chat-head-btn:hover{background:color-mix(in srgb,currentColor 16%,transparent)}
+.chat-head-btn:focus-visible{outline:2px solid var(--accent-fg);outline-offset:-2px}
+.chat-log{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:12px;background:var(--surface)}
+.chat-msg{display:flex;flex-direction:column;gap:6px;max-width:88%;min-width:0}
+.chat-msg.bot{align-self:flex-start}
+.chat-msg.user{align-self:flex-end;align-items:flex-end}
+.chat-bubble{padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.chat-msg.bot .chat-bubble{background:var(--surface-2);border:1px solid var(--line);color:var(--fg);border-top-left-radius:4px}
+.chat-msg.user .chat-bubble{background:var(--accent);color:var(--accent-fg);border-top-right-radius:4px}
+.chat-msg.err .chat-bubble{background:var(--err-soft);border-color:transparent;color:var(--err)}
+.chat-note{font-size:12px;color:var(--fg-3);white-space:normal}
+.chat-msg .issues li{font-size:12px;padding:6px 10px;white-space:pre-wrap;word-break:break-word}
+.chat-preview{margin:0;padding:8px 10px;max-height:160px;overflow-y:auto;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-all;color:var(--fg)}
+.chat-preview .extra-line{display:block;margin-top:6px;color:var(--fg-3)}
+.chat-opts{display:flex;flex-wrap:wrap;gap:6px}
+.chat-start,.chat-choice,.chat-act{font:inherit;font-size:12px;padding:4px 11px;border-radius:999px;cursor:pointer}
+.chat-start{border:1px solid var(--line-strong);background:var(--surface);color:var(--fg-2)}
+.chat-start:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.chat-choice{border:1px solid var(--accent);background:var(--accent-soft);color:var(--accent)}
+.chat-act{border:1px solid var(--line-strong);background:var(--surface);color:var(--fg);font-weight:600;border-radius:6px;padding:5px 12px}
+.chat-act.main{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.chat-start:disabled,.chat-choice:disabled,.chat-act:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(1)}
+.chat-start:focus-visible,.chat-choice:focus-visible,.chat-act:focus-visible,.chat-fab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chat-scope{font-size:11.5px;color:var(--fg-3);line-height:1.5}
+.chat-loading{padding:6px 16px;font-size:12px;color:var(--fg-2);border-top:1px solid var(--line);background:var(--surface-2)}
+.chat-limit{padding:8px 16px;font-size:12px;line-height:1.5;color:var(--fg-2);border-top:1px solid var(--line);background:var(--surface-2)}
+.chat-input-bar{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);background:var(--surface)}
+.chat-input-bar input{flex:1;min-width:0}
+.chat-input-bar input:disabled{opacity:.6}
+.chat-input-bar button.primary{padding:8px 14px;white-space:nowrap}
+
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:13px;font-weight:500;z-index:20}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -188,22 +227,6 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
 
   <div class="grid">
     <form class="form" id="form" novalidate>
-      <section class="card">
-        <h2>자연어로 작성 <small>예: 주문 관련 메시지 세팅해줘</small></h2>
-        <div class="field">
-          <div class="field-head"><label for="nlPrompt">어떤 안내 메시지가 필요한가요?</label><span class="counter" id="cntPrompt"></span></div>
-          <textarea id="nlPrompt" rows="3" maxlength="500" style="min-height:80px"></textarea>
-          <span class="hint">알림톡은 정보성 메시지만 보낼 수 있습니다. 광고·홍보성 요청은 작성되지 않습니다.</span>
-          <span class="hint" id="nlScope">자동 작성은 메시지 유형 <b>기본형·부가정보형</b>, 강조 유형 <b>선택 안 함·강조 표기형</b>만 채웁니다. 채널추가형·복합형, 이미지형·아이템리스트형 강조, 버튼은 아래에서 직접 설정해 주세요.</span>
-        </div>
-        <div class="actions"><button type="button" class="primary" id="nlGenerate">생성</button></div>
-        <ul class="issues" id="nlStatus" aria-live="polite"></ul>
-        <div class="actions" id="nlViolationActions" hidden>
-          <button type="button" class="ghost" id="nlRetry">다시 생성</button>
-          <button type="button" class="primary" id="nlApplyAnyway">그래도 폼에 채우기</button>
-        </div>
-      </section>
-
       <section class="card">
         <h2>기본 정보</h2>
         <div class="row">
@@ -384,6 +407,24 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 
+<!-- 대화형 세팅 챗봇: 왼쪽 아래 고정 버튼 + 창 (대화 기록은 브라우저 메모리에만 보관) -->
+<button type="button" class="chat-fab" id="chatFab" aria-label="알림톡 자동완성 열기" title="알림톡 자동완성">💬</button>
+<div class="chat-win" id="chatWin" role="dialog" aria-label="알림톡 자동완성" hidden>
+  <div class="chat-head">
+    <span class="chat-title">알림톡 자동완성</span>
+    <button type="button" class="chat-head-btn chat-new" id="chatNew" title="대화를 지우고 처음부터 시작합니다">새 대화</button>
+    <button type="button" class="chat-head-btn" id="chatMin" aria-label="접기" title="접기">−</button>
+    <button type="button" class="chat-head-btn" id="chatClose" aria-label="닫기" title="닫기">×</button>
+  </div>
+  <div class="chat-log" id="chatLog" aria-live="polite"></div>
+  <div class="chat-loading" id="chatLoading" hidden role="status">작성 중…</div>
+  <div class="chat-limit" id="chatLimit" hidden role="status">대화가 길어졌어요. [새 대화]로 다시 시작해 주세요.</div>
+  <div class="chat-input-bar">
+    <input type="text" id="chatInput" maxlength="500" placeholder="직접 입력하거나 위에서 골라 주세요" aria-label="챗봇에게 보낼 내용">
+    <button type="button" class="primary" id="chatSend">보내기</button>
+  </div>
+</div>
+
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -418,7 +459,6 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
   if (!Array.isArray(state.buttons)) state.buttons = [];
   if (!state.item || !Array.isArray(state.item.list)) state.item = emptyItem();
   let imageData = null, itemImageData = null, thumbData = null;
-  let pendingDraft = null;
 
   function load(){ try{ const s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : null; }catch(e){ return null; } }
   function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} }
@@ -638,6 +678,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     counter("cntContent", state.content, LIMIT.content); counter("cntExtra", state.extra, LIMIT.extra);
     counter("cntTitle", state.title, LIMIT.title); counter("cntSub", state.sub, LIMIT.sub);
     renderVars(); renderPreview(); save();
+    syncChat();
   }
 
   $("form").addEventListener("submit", e => e.preventDefault());
@@ -645,7 +686,6 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
   $("resetBtn").addEventListener("click", () => {
     state = structuredClone(SAMPLE);
     clearImages();
-    clearStatus();
     fillForm(); update(); toast("예시 템플릿으로 되돌렸습니다.");
   });
 
@@ -674,16 +714,12 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     $("emImg").value = ""; $("itImg").value = ""; $("itThumb").value = "";
   }
 
-  /* ---------- 자연어 생성 ---------- */
-  function clearStatus(){ $("nlStatus").innerHTML = ""; $("nlViolationActions").hidden = true; pendingDraft = null; }
-  function showStatus(items){
-    $("nlStatus").innerHTML = items.map(([cls, msg]) => `<li class="${cls}">${cls === "e" ? "✕" : cls === "w" ? "!" : "✓"} ${esc(msg)}</li>`).join("");
-  }
-
+  /* ---------- 초안 적용 ---------- */
   function formEdited(){
     return FORM_KEYS.some(k => JSON.stringify(state[k]) !== JSON.stringify(SAMPLE[k]));
   }
 
+  /* 새로 만들기: 폼이 수정됐으면 확인 후 덮어쓰고, 버튼·아이템리스트·이미지는 비운다 */
   function applyDraft(draft){
     if (formEdited() && !confirm("현재 입력한 내용을 덮어씁니다. 계속할까요?")) return false;
     for (const k of FORM_KEYS){
@@ -698,73 +734,266 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     return true;
   }
 
-  async function generate(){
-    const prompt = $("nlPrompt").value.trim();
-    if (!prompt){ showStatus([["e", "요청 내용을 입력해 주세요."]]); return; }
-    clearStatus();
-    const btn = $("nlGenerate");
-    btn.disabled = true;
-    showStatus([["w", "생성 중입니다. 최대 2분 정도 걸릴 수 있습니다."]]);
+  /* 다듬기: 텍스트 항목·예시값만 바꾸고 버튼·아이템리스트·이미지·채널은 그대로 둔다.
+     자동 작성 범위 밖 유형(채널추가형·복합형, 이미지형·아이템리스트형)은 폼 값을 유지한다. */
+  const POLISH_KEYS = ["category", "name", "code", "msgType", "emph", "title", "sub", "content", "extra", "security", "samples"];
+  function applyPolish(draft){
+    const keepMsgType = state.msgType === "AD" || state.msgType === "MI";
+    const keepEmph = state.emph === "IMAGE" || state.emph === "ITEM_LIST";
+    for (const k of POLISH_KEYS){
+      if ((k === "msgType" && keepMsgType) || (k === "emph" && keepEmph)) continue;
+      if (k === "samples") state.samples = { ...(draft.samples || {}) };
+      else if (k === "security") state.security = !!draft.security;
+      else state[k] = draft[k] == null ? "" : String(draft[k]);
+    }
+    fillForm(); update();
+  }
 
-    const ctrl = new AbortController();
+  /* ---------- 대화형 세팅 (챗봇) ---------- */
+  const CHAT_URL = "/api/templates/chat";
+  const CHAT_TEXT_MAX = 500;
+  const CHAT_USER_MAX = 10;   // 서버는 messages 최대 20개(마지막 user) → 사용자 발화 최대 10번
+  const START_ITEMS = ["주문 완료", "주문 취소", "배송 시작", "예약 확정", "회원가입", "인증번호"];
+  const POLISH_SAY = "지금 폼을 다듬어줘";
+  const SCOPE_HTML = "자동 작성은 메시지 유형 <b>기본형·부가정보형</b>, 강조 유형 <b>선택 안 함·강조 표기형</b>만 채웁니다. 채널추가형·복합형, 이미지형·아이템리스트형 강조, 버튼은 폼에서 직접 설정해 주세요.";
+
+  let chatHistory = [];       // [{role, text, kind?}] 서버에 보내는 대화 기록
+  let chatBusy = false;
+  let chatConv = 0;           // [새 대화] 후 도착한 이전 대화의 응답을 무시하기 위한 번호
+  let chatCtrl = null;
+  let activeChoices = null;   // 누를 수 있는 선택지 묶음(가장 최근 챗봇 응답의 것)
+  let lastReply = null;       // 가장 최근 챗봇 응답 말풍선([다시 생성]은 여기서만)
+
+  function formSnapshot(){
+    const f = {};
+    for (const k of POLISH_KEYS) f[k] = k === "samples" ? { ...state.samples } : k === "security" ? !!state.security : String(state[k] == null ? "" : state[k]);
+    return f;
+  }
+
+  function scrollChat(){ const log = $("chatLog"); log.scrollTop = log.scrollHeight; }
+
+  function makeBtn(cls, label, onClick){
+    const b = document.createElement("button");
+    b.type = "button"; b.className = cls; b.textContent = label;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  /* 말풍선 하나를 추가한다. html은 이미 escape된 문자열만 넘긴다 */
+  function addMsg(who, html, extraCls){
+    const m = document.createElement("div");
+    m.className = "chat-msg " + who + (extraCls ? " " + extraCls : "");
+    if (html != null){
+      const b = document.createElement("div"); b.className = "chat-bubble"; b.innerHTML = html;
+      m.appendChild(b);
+    }
+    $("chatLog").appendChild(m);
+    scrollChat();
+    return m;
+  }
+
+  function renderGreeting(){
+    $("chatLog").innerHTML = "";
+    const m = addMsg("bot", "안녕하세요! 어떤 알림톡 메시지를 만들까요?", "chat-greet");
+    const opts = document.createElement("div"); opts.className = "chat-opts";
+    START_ITEMS.forEach(name => {
+      const b = makeBtn("chat-start", name, () => chatSend(b.dataset.say));
+      b.dataset.say = name + " 안내 메시지";
+      opts.appendChild(b);
+    });
+    const p = makeBtn("chat-start", "지금 폼 다듬기", () => chatSend(POLISH_SAY));
+    p.dataset.polish = "";
+    p.title = "템플릿 내용이 있을 때 지금 폼의 문장을 다듬습니다";
+    opts.appendChild(p);
+    m.appendChild(opts);
+    const sc = document.createElement("div"); sc.className = "chat-scope"; sc.id = "chatScope"; sc.innerHTML = SCOPE_HTML;
+    m.appendChild(sc);
+  }
+
+  /* 대화 한도: 답을 받은 사용자 발화가 CHAT_USER_MAX번이면 더 보낼 수 없다(오류로 끝난 발화는 기록에서 빠지므로 세지 않음) */
+  function chatLimited(){ return chatHistory.filter(h => h.role === "user").length >= CHAT_USER_MAX; }
+
+  /* 버튼 잠금 상태를 한곳에서 맞춘다 (대기 중이면 모두 잠금, 한도에 닿으면 입력·선택지·시작 버튼 잠금) */
+  function syncChat(){
+    const busy = chatBusy;
+    const limited = !busy && chatLimited();
+    const lock = busy || limited;
+    $("chatInput").disabled = lock; $("chatSend").disabled = lock;
+    $("chatLoading").hidden = !busy;
+    $("chatLimit").hidden = !limited;
+    $("chatWin").setAttribute("aria-busy", busy ? "true" : "false");
+    document.querySelectorAll(".chat-start").forEach(b => {
+      b.disabled = lock || ("polish" in b.dataset && !String(state.content || "").trim());
+    });
+    document.querySelectorAll(".chat-choice").forEach(b => { b.disabled = lock || b.parentElement !== activeChoices; });
+    document.querySelectorAll(".chat-act").forEach(b => {
+      b.disabled = busy || b.dataset.done === "1" || (b.classList.contains("chat-retry") && b.closest(".chat-msg") !== lastReply);
+    });
+  }
+  function setBusy(v){ chatBusy = v; syncChat(); }
+
+  function chatSend(raw){
+    if (chatBusy || chatLimited()) return;
+    const text = String(raw == null ? "" : raw).trim();
+    if (!text) return;
+    chatHistory.push({ role: "user", text: text.slice(0, CHAT_TEXT_MAX) });
+    addMsg("user", esc(text));
+    chatRequest(chatHistory.slice());
+  }
+
+  /* sent: 이번에 보낼 대화 기록(마지막은 사용자 발화). 성공하면 chatHistory = sent + 응답 */
+  async function chatRequest(sent){
+    const conv = chatConv;
+    setBusy(true);
+    const ctrl = new AbortController(); chatCtrl = ctrl;
     const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch("/api/templates/generate", {
+      const res = await fetch(CHAT_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, channel: state.channel }),
+        body: JSON.stringify({ messages: sent, channel: $("channel").value, form: formSnapshot() }),
         signal: ctrl.signal
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok){
-        const applied = applyDraft(data.draft);
-        const items = applied ? [["ok", `템플릿을 작성했습니다. (시도 ${data.attempts}회)`]]
-          : [["w", "덮어쓰기를 취소했습니다. 생성 결과는 보관해 두었으니 [폼에 채우기]로 다시 채울 수 있습니다."]];
-        (data.warnings || []).forEach(w => items.push(["w", w]));
-        showStatus(items);
-        if (!applied) offerPending(data.draft, false);
-      } else if (res.status === 422 && data.reason === "RULE_VIOLATION"){
-        offerPending(data.draft, true);
-        const items = [["e", data.message || "규칙을 모두 맞추지 못했습니다."]];
-        (data.errors || []).forEach(e => items.push(["e", e]));
-        (data.warnings || []).forEach(w => items.push(["w", w]));
-        showStatus(items);
+      if (conv !== chatConv) return;
+      if (res.ok && data && data.kind){
+        handleReply(data, sent);
       } else {
-        showStatus([["e", data.message || "템플릿 생성 중 오류가 발생했습니다."]]);
+        chatHistory = sent.slice(0, -1);  // 답을 받지 못한 발화는 기록에서 뺀다(말풍선은 남김)
+        const msg = (data && data.message) || (res.status === 504 ? "응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요." : "템플릿 작성 중 오류가 발생했습니다.");
+        addMsg("bot", esc(msg), "err");
       }
     } catch (err) {
-      showStatus([["e", err.name === "AbortError" ? "응답이 너무 오래 걸려 중단했습니다. 잠시 후 다시 시도해 주세요." : "서버에 연결할 수 없습니다."]]);
+      if (conv !== chatConv) return;
+      chatHistory = sent.slice(0, -1);
+      addMsg("bot", esc(err && err.name === "AbortError" ? "응답이 너무 오래 걸려 중단했습니다. 잠시 후 다시 시도해 주세요." : "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."), "err");
     } finally {
       clearTimeout(timer);
-      btn.disabled = false;
+      if (conv === chatConv){
+        chatCtrl = null;
+        setBusy(false);
+        if (!$("chatWin").hidden) $("chatInput").focus();
+      }
     }
   }
 
-  $("nlGenerate").addEventListener("click", generate);
-  $("nlRetry").addEventListener("click", generate);
-  /* 아직 폼에 넣지 않은 생성 결과를 보관하고 [폼에 채우기] 버튼을 보여 준다 (규칙 위반 결과 또는 덮어쓰기 취소) */
-  let pendingIsViolation = false;
-  function offerPending(draft, isViolation){
-    pendingDraft = draft;
-    pendingIsViolation = isViolation;
-    $("nlApplyAnyway").textContent = isViolation ? "그래도 폼에 채우기" : "폼에 채우기";
-    $("nlViolationActions").hidden = false;
+  function issuesHtml(errors, warnings){
+    const items = (errors || []).map(e => ["e", e]).concat((warnings || []).map(w => ["w", w]));
+    if (!items.length) return "";
+    return `<ul class="issues">${items.map(([c, t]) => `<li class="${c}">${c === "e" ? "✕" : "!"} ${esc(t)}</li>`).join("")}</ul>`;
   }
-  $("nlApplyAnyway").addEventListener("click", () => {
-    if (!pendingDraft) return;
-    if (applyDraft(pendingDraft)){
-      $("nlViolationActions").hidden = true;
-      pendingDraft = null;
-      toast(pendingIsViolation ? "폼에 채웠습니다. 위 오류 항목을 직접 고쳐 주세요." : "폼에 채웠습니다.");
+
+  function previewHtml(d){
+    let h = "";
+    if (d.emph === "TEXT" && (d.title || d.sub)) h += `${esc(d.sub || "")}\n${esc(d.title || "")}\n\n`;
+    h += esc(d.content || "");
+    if ((d.msgType === "EX" || d.msgType === "MI") && d.extra) h += `<span class="extra-line">${esc(d.extra)}</span>`;
+    return `<div class="chat-preview">${h}</div>`;
+  }
+
+  /* 버튼을 누른 뒤 그 말풍선의 처리 버튼을 끄고 결과 문구를 남긴다 */
+  function finishActs(m, note){
+    m.querySelectorAll(".chat-act").forEach(b => { b.dataset.done = "1"; });
+    if (note){ const n = document.createElement("div"); n.className = "chat-note"; n.textContent = note; m.appendChild(n); }
+    syncChat(); scrollChat();
+  }
+
+  function handleReply(data, sent){
+    const reply = data.reply || {};
+    const choices = Array.isArray(reply.choices) ? reply.choices.filter(c => typeof c === "string" && c.trim()) : [];
+    const kind = data.kind;
+    const fallback = kind === "ASK" ? "어떤 내용을 넣을까요?" : kind === "REJECTED" ? "요청을 처리할 수 없습니다." : "템플릿을 작성했습니다.";
+    const text = String(reply.text || "").trim() || fallback;
+    chatHistory = sent.concat([{ role: "assistant", text: text.slice(0, CHAT_TEXT_MAX), kind }]);
+
+    const m = addMsg("bot", null);
+    const bubble = document.createElement("div"); bubble.className = "chat-bubble"; m.appendChild(bubble);
+    const acts = document.createElement("div"); acts.className = "chat-opts";
+    let html = esc(text);
+
+    if (kind === "DRAFT" && data.draft){
+      const draft = data.draft;
+      const polish = data.mode === "POLISH";
+      const errors = Array.isArray(data.errors) ? data.errors : [];
+      const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+      if (errors.length){
+        html += `\n<span class="chat-note">규칙을 모두 맞추지 못했습니다. 아래 항목을 확인해 주세요.</span>`;
+        if (polish) html += previewHtml(draft);
+        html += issuesHtml(errors, warnings);
+        acts.appendChild(makeBtn("chat-act main chat-apply-anyway", polish ? "그래도 적용" : "그래도 폼에 채우기", () => {
+          if (polish){ applyPolish(draft); finishActs(m, "폼에 적용했습니다. 위반 항목을 직접 고쳐 주세요."); }
+          else if (applyDraft(draft)) finishActs(m, "폼에 채웠습니다. 위반 항목을 직접 고쳐 주세요.");
+        }));
+        acts.appendChild(makeBtn("chat-act chat-retry", polish ? "다시 다듬기" : "다시 생성", () => {
+          if (chatBusy || m !== lastReply) return;
+          finishActs(m, null);
+          chatRequest(sent.slice());  // 같은 대화 기록을 그대로 다시 요청
+        }));
+      } else if (polish){
+        html += previewHtml(draft) + issuesHtml([], warnings);
+        acts.appendChild(makeBtn("chat-act main chat-apply", "적용", () => { applyPolish(draft); finishActs(m, "폼에 적용했습니다."); }));
+        acts.appendChild(makeBtn("chat-act chat-cancel", "취소", () => finishActs(m, "적용하지 않았습니다.")));
+      } else {
+        const applied = applyDraft(draft);
+        html += issuesHtml([], warnings);
+        if (applied){
+          html += `\n<span class="chat-note">폼에 채웠습니다. 버튼·이미지·아이템리스트는 직접 설정해 주세요.</span>`;
+        } else {
+          html += `\n<span class="chat-note">덮어쓰기를 취소했습니다. 결과는 보관해 두었으니 [폼에 채우기]로 다시 채울 수 있습니다.</span>`;
+          acts.appendChild(makeBtn("chat-act main chat-apply-later", "폼에 채우기", () => {
+            if (applyDraft(draft)) finishActs(m, "폼에 채웠습니다.");
+          }));
+        }
+      }
     }
+    bubble.innerHTML = html;
+    if (acts.childNodes.length) m.appendChild(acts);
+
+    activeChoices = null;
+    if (choices.length){
+      const box = document.createElement("div"); box.className = "chat-opts";
+      choices.forEach(c => box.appendChild(makeBtn("chat-choice", c, () => chatSend(c))));
+      m.appendChild(box);
+      activeChoices = box;
+    }
+    lastReply = m;
+    syncChat(); scrollChat();
+  }
+
+  function openChat(){
+    $("chatWin").hidden = false; $("chatFab").hidden = true;
+    scrollChat();
+    if (!$("chatInput").disabled) $("chatInput").focus();
+  }
+  function hideChat(){ $("chatWin").hidden = true; $("chatFab").hidden = false; $("chatFab").focus(); }
+  function newChat(){
+    chatConv++;
+    if (chatCtrl){ chatCtrl.abort(); chatCtrl = null; }
+    chatHistory = []; activeChoices = null; lastReply = null; chatBusy = false;
+    renderGreeting(); syncChat();
+    $("chatInput").value = "";
+    $("chatInput").focus();
+  }
+  $("chatFab").addEventListener("click", openChat);
+  $("chatMin").addEventListener("click", hideChat);
+  $("chatClose").addEventListener("click", hideChat);
+  $("chatNew").addEventListener("click", newChat);
+  function sendInput(){
+    if (chatBusy || chatLimited()) return;
+    const inp = $("chatInput");
+    if (!inp.value.trim()) return;
+    const v = inp.value; inp.value = "";
+    chatSend(v);
+  }
+  $("chatSend").addEventListener("click", sendInput);
+  $("chatInput").addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229 && !e.shiftKey){ e.preventDefault(); sendInput(); }
   });
-  /* textarea maxlength·서버 검증과 같은 기준(UTF-16 길이)으로 센다 */
-  function promptCounter(){ const n = $("nlPrompt").value.length, el = $("cntPrompt"); el.textContent = `${n}/${LIMIT.prompt}`; el.classList.toggle("over", n > LIMIT.prompt); }
-  $("nlPrompt").addEventListener("input", promptCounter);
 
   let tt; function toast(msg){ const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 2200); }
 
-  fillForm(); update(); promptCounter();
+  renderGreeting();
+  fillForm(); update();
 })();
 </script>
 </body>

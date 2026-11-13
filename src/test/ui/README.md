@@ -16,7 +16,8 @@ SPRING_PROFILES_ACTIVE=fake-llm ./gradlew bootRun --args='--server.port=8081'
 src/test/ui/verify.sh
 ```
 - 필요: macOS Google Chrome(`CHROME` 환경변수로 경로 변경 가능), python3, curl
-- 실제 Claude API는 호출하지 않는다. 가짜 LLM 응답 규칙: 요청에 "광고" → 거절, "위반" → 1,100자 본문(규칙 위반), 그 외 → 주문완료 템플릿.
+- 실제 Claude API는 호출하지 않는다. 가짜 LLM 응답 규칙(마지막 사용자 발화 기준): "광고"·"홍보" → 거절, "다듬"·"정중" → 다듬기 결과, "생성해줘" → 유형 질문 + 선택지 5개, 첫 발화가 "... 안내 메시지" → 정보 질문 + 선택지 3개, "위반" → 1,100자 본문(규칙 위반), 그 외 → 주문완료 템플릿.
+- 챗봇 점검 항목은 `/api/templates/chat` 요청을 `fetch` 감싸기로 기록하고, 대기·오류 상황은 같은 방법으로 지연·가짜 오류 응답을 만든다(서버 코드는 그대로).
 
 ## 항목 추가
 화면을 고칠 때는 먼저 `verify.html`에 점검 항목을 추가해 FAIL을 확인하고, 코드를 고친 뒤 전체가 PASS인지 확인한다.
