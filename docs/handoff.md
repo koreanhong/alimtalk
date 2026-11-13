@@ -6,7 +6,7 @@
 - 기능: 자연어("주문 관련 메시지 세팅해줘") → Claude API가 카카오 알림톡 규칙에 맞는 템플릿 초안 생성 → 등록 폼 자동 채움. 수작업으로는 카카오 제공 유형 전부 설정 가능.
 - git: 브랜치 `feature/nl-template-generation` (main에는 초기 커밋만). 원격 저장소 없음.
 - 구현 계획 Task 1~8 완료. Task 8(실제 Claude 호출 확인): 2026-11-13 테스트 15건 모두 기대대로, 재생성 0회, 응답 2~11초, 건당 약 $0.009(추정).
-- 테스트: 서버 자동 테스트 66개 중 65개 통과, 1개 skip(실제 Claude 호출 테스트). 화면 자동 점검(`src/test/ui/`) 47항목 통과.
+- 테스트: 서버 자동 테스트 96개 중 95개 통과, 1개 skip(실제 Claude 호출 테스트). 화면 자동 점검(`src/test/ui/`) 47항목 통과.
 - 실제 Claude API 호출 성공(2026-11-13, 크레딧 충전 후). 첫 호출: input 39 / output 252 / cache write 5,007 토큰, 추정 약 $0.03.
 
 ### 주요 파일
@@ -69,6 +69,11 @@
 - `CLAUDE.md` 섹션 1·2 작성 시점
 
 ## 다음 작업
+0. **진행 중: 대화형 세팅** — 설계 `docs/specs/2026-11-13-conversational-setup-design.md`(승인), 계획 `docs/plans/2026-11-13-conversational-setup.md`
+   - 완료: Task 1(여러 턴 Claude 호출), Task 2(응답 형식 OK/ASK/AD_CONTENT·mode·choices, 생성 지침 5장 대화 규칙), Task 3(생성 서비스 `chat()`·다듬기·강제 작성·사용량 v2), Task 4(`POST /api/templates/chat`)
+   - **다음: Task 5 화면** — 세션 재시작 후 진행(새 `frontend-developer` 에이전트 인식 필요). 순서: 메인 세션이 가짜 LLM 대화 규칙(`FakeLlmClient`) 반영 → test 에이전트가 `src/test/ui/verify.html` 점검 항목 먼저 작성(FAIL 확인) → frontend-developer 에이전트가 `index.html` 대화 카드 구현 → test 에이전트 전체 점검·스크린샷. 에이전트는 커밋하지 않는다.
+   - 그다음: code-reviewer 전체 검토 → Task 6(문서, 실제 Claude 대화 시나리오 확인 — 비용 승인 후)
+   - 현재 화면(`index.html`)은 아직 기존 "자연어로 작성"(`/generate`) 그대로. 기존 API는 애매하면 UNCLEAR(되묻기)로 응답하도록 바뀜.
 1. (완료) Task 8 실제 Claude 호출 확인 — 결과는 현재 상태·작업 이력 참고. 키 설정·실행 순서는 `docs/run-guide.md` 1장
 2. 남은 보류 지적 2건(이전 버전 저장값 때문의 불필요한 확인 창, 저장 데이터 일부 손상 시 보정) 처리 여부 결정
 3. 브랜치를 main에 합칠지 결정
@@ -87,3 +92,4 @@
 - 2026-11-13: 실제 호출 400 오류. 원인 파악을 위해 `ClaudeLlmClient`가 Anthropic 오류 종류·설명(300자까지)·요청 ID를 WARN 로그에 남기도록 수정(키·요청 본문은 남기지 않음, 화면 응답은 그대로).
 - 2026-11-13: 크레딧 충전 후 실제 호출 성공. "주문 관련 메시지"가 UNCLEAR(되묻기)로 응답 → 사용자 결정으로 애매한 요청은 가장 일반적인 경우로 작성 + 가정 문구를 경고 맨 앞에 표시하도록 생성 지침·LlmOutput 설명·생성 서비스 수정(테스트 3개 추가).
 - 2026-11-13: 실행 가이드 5장 테스트 15건 실제 Claude로 실행 → 15/15 기대대로(재생성 0회, 2~11초, 15건 약 $0.13 추정). 생성 요청별 사용량 CSV 기록(`logs/llm-usage.csv`) 추가(테스트 12개 추가, 가짜 LLM 서버로 기록 확인).
+- 2026-11-13: 대화형 세팅 기획(브레인스토밍) → 설계 승인 → 계획 작성. frontend-developer 에이전트 추가. Task 1~4(서버) 완료·커밋. 채널 표시명 아디다스·PMK(서버·화면). 사용량 기록 v2(`logs/llm-usage-v2.csv`, 모드·대화턴수 열).
