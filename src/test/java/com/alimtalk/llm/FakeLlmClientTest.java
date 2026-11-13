@@ -77,6 +77,69 @@ class FakeLlmClientTest {
         assertThat(out.draft().content().length()).isGreaterThan(1000);
     }
 
+    private static final PromptBuilder PROMPTS = new PromptBuilder(new com.alimtalk.rules.RuleLoader());
+
+    /** 서버(TemplateGenerationService)가 만드는 것과 같은 첫 발화: 채널 + 현재 폼 + 요청. */
+    private static LlmTurn withForm(com.alimtalk.template.TemplateDraft form, String request) {
+        return LlmTurn.user(PROMPTS.channelLine("아디다스") + PROMPTS.formContext(form) + "\n\n요청: " + request);
+    }
+
+    private static com.alimtalk.template.TemplateDraft form(String msgType, String emph) {
+        return new com.alimtalk.template.TemplateDraft("003001", "배송 시작 안내", "SHIP_START_01", msgType, emph,
+                "#{송장번호}", "배송 시작", "#{고객명}님, 배송이 시작되었습니다.\n- 택배사: #{택배사}", "문의: 고객센터 1588-0000", false,
+                new java.util.LinkedHashMap<>(java.util.Map.of("고객명", "홍길동", "택배사", "CJ대한통운", "송장번호", "1234")));
+    }
+
+    @Test
+    void polishWithViolationReturnsTooLongPolishDraft() {
+        LlmOutput out = send(withForm(form("BA", "NONE"), "다듬어줘 위반"));
+
+        assertThat(out.status()).isEqualTo(LlmOutput.Status.OK);
+        assertThat(out.mode()).isEqualTo(LlmOutput.Mode.POLISH);
+        assertThat(out.draft().content().length()).isGreaterThan(1000);
+    }
+
+    @Test
+    void warningKeywordReturnsDraftWithCautionWord() {
+        LlmOutput out = send(first("경고 테스트"));
+
+        assertThat(out.status()).isEqualTo(LlmOutput.Status.OK);
+        assertThat(out.mode()).isEqualTo(LlmOutput.Mode.NEW);
+        com.alimtalk.rules.RuleValidator validator = new com.alimtalk.rules.RuleValidator(new com.alimtalk.rules.RuleLoader().ruleSet());
+        com.alimtalk.rules.ValidationResult result = validator.validate(out.draft().toDraft());
+        assertThat(result.errors()).isEmpty();
+        assertThat(result.warnings()).isNotEmpty();
+    }
+
+    @Test
+    void polishUsesCurrentFormContentAndClearsExtra() {
+        LlmOutput out = send(withForm(form("MI", "NONE"), "다듬어줘"));
+
+        assertThat(out.mode()).isEqualTo(LlmOutput.Mode.POLISH);
+        assertThat(out.draft().content()).isEqualTo("[다듬음] #{고객명}님, 배송이 시작되었습니다.\n- 택배사: #{택배사}");
+        assertThat(out.draft().extra()).isEmpty();
+        assertThat(out.draft().name()).isEqualTo("배송 시작 안내");
+        assertThat(out.draft().toDraft().samples()).containsEntry("고객명", "홍길동").containsEntry("택배사", "CJ대한통운");
+    }
+
+    @Test
+    void polishOfInScopeExtraFormPassesRules() {
+        LlmOutput out = send(withForm(form("EX", "TEXT"), "더 정중하게"));
+
+        assertThat(out.draft().msgType()).isEqualTo(LlmOutput.MsgType.EX);
+        assertThat(out.draft().emph()).isEqualTo(LlmOutput.Emph.TEXT);
+        assertThat(out.draft().extra()).isEqualTo("문의: 고객센터 1588-0000");
+        com.alimtalk.rules.RuleValidator validator = new com.alimtalk.rules.RuleValidator(new com.alimtalk.rules.RuleLoader().ruleSet());
+        assertThat(validator.validate(out.draft().toDraft()).errors()).isEmpty();
+    }
+
+    @Test
+    void polishWithoutFormReturnsFixedDraft() {
+        LlmOutput out = send(first("지금 폼을 다듬어줘"));
+
+        assertThat(out.draft().content()).startsWith("[주문완료 안내]");
+    }
+
     @Test
     void oneShotGenerateStillWorks() throws Exception {
         LlmOutput out = fake.generate("sys", "요청: 주문 관련 메시지 세팅해줘", Duration.ofSeconds(1)).output();

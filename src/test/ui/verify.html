@@ -376,7 +376,7 @@ f.addEventListener("load", async () => {
     await clickStart(".chat-start[data-polish]");
     const lb = lastBot(), ap = q(".chat-apply", lb), cc = q(".chat-cancel", lb);
     rec("polishShowsApplyCancel",
-      txt(lastUser()).includes("지금 폼을 다듬어줘") && txt(lb).includes("항목별로 정리했습니다.") && txt(lb).includes("안녕하세요")
+      txt(lastUser()).includes("지금 폼을 다듬어줘") && txt(lb).includes("항목별로 정리했습니다.") && txt(lb).includes("[다듬음]")
         && vis(ap) && vis(cc) && $("content").value === SAMPLE_CONTENT && lastReq().messages.slice(-1)[0].text === "지금 폼을 다듬어줘",
       "user=" + txt(lastUser()) + " bot=" + txt(lb).slice(0, 60) + " apply=" + vis(ap) + " cancel=" + vis(cc) + " formKept=" + ($("content").value === SAMPLE_CONTENT));
     need(cc, ".chat-cancel").click();
@@ -400,10 +400,210 @@ f.addEventListener("load", async () => {
     await sleep(300);
     const names = [...$("btnList").querySelectorAll(".btn-item")].map(b => (b.querySelector("[data-k=name]") || {}).value);
     rec("polishApplyKeepsButtonsAndItemList",
-      $("content").value.startsWith("[주문완료 안내]") && names.join(",") === "주문 상세 보기,배송 조회"
+      $("content").value.startsWith("[다듬음] ") && names.join(",") === "주문 상세 보기,배송 조회"
         && d.querySelector("input[name=emph][value=ITEM_LIST]").checked && $("itHeader").value === "주문 내역"
         && $("itImg").value !== "" && $("channel").value === channel,
       `content=${$("content").value.slice(0, 15)} buttons=${names.join(",")} itemList=${d.querySelector("input[name=emph][value=ITEM_LIST]").checked} header=${$("itHeader").value} img=${$("itImg").value !== ""}`);
+  });
+
+  /* ---------- 11-1) 리뷰 후 추가 점검 공통 도구 ---------- */
+  const jsonRes = (status, body) => Promise.resolve(new w.Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
+  const msgsJson = (r) => JSON.stringify((r && r.messages) || null);
+  function setVal(id, v){ const el = need($(id), "#" + id); el.value = v; el.dispatchEvent(new w.Event("input", { bubbles: true })); }
+  function setSample(name, v){
+    const el = need($("vars").querySelector(`[data-var="${CSS.escape(name)}"]`), "예시값 칸 " + name);
+    el.value = v; el.dispatchEvent(new w.Event("input", { bubbles: true }));
+  }
+  const sampleVal = (name) => { const el = $("vars").querySelector(`[data-var="${CSS.escape(name)}"]`); return el ? el.value : null; };
+  /* 마지막 챗봇 말풍선의 처리 버튼을 누르고, 새 말풍선이 생길 때까지 기다린다(wait=true일 때) */
+  async function clickAct(sel, wait){
+    const n = bots().length;
+    need(q(sel, lastBot()), sel).click();
+    if (wait && !await waitReply(n)) throw new Error(sel + " 클릭 후 응답 없음");
+    await sleep(200);
+  }
+  const btnNames = () => [...$("btnList").querySelectorAll(".btn-item")].map(b => (b.querySelector("[data-k=name]") || {}).value).filter(v => v != null);
+
+  /* ---------- 11-2) 다듬기 결과가 규칙 위반: [그래도 적용]/[다시 다듬기] ---------- */
+  await block(["polishViolationShowsApplyAnywayRetry", "polishViolationRetrySameMessages", "polishViolationApplyAnywayKeepsButtonsAndItemList"], async () => {
+    resetForm();
+    await newChat();
+    d.querySelector("input[name=emph][value=ITEM_LIST]").click();
+    setVal("itHeader", "주문 내역");
+    w.confirm = () => true;
+    await say("다듬어줘 위반");
+    const reqA = lastReq();
+    const lb = lastBot(), any = q(".chat-apply-anyway", lb), retry = q(".chat-retry", lb);
+    rec("polishViolationShowsApplyAnywayRetry",
+      txt(lb).includes("최대 1,000자") && vis(any) && /그래도 적용/.test(txt(any)) && vis(retry) && /다시 다듬기/.test(txt(retry))
+        && !$("content").value.startsWith("#{고객명}님, 주문이 접수되었습니다"),
+      "bot=" + txt(lb).slice(0, 60) + " anyway=" + txt(any) + " retry=" + txt(retry));
+    const nReq = chatReqs.length;
+    await clickAct(".chat-retry", true);
+    rec("polishViolationRetrySameMessages", chatReqs.length === nReq + 1 && msgsJson(lastReq()) === msgsJson(reqA),
+      `requests+${chatReqs.length - nReq} same=${msgsJson(lastReq()) === msgsJson(reqA)} msgs=${msgsJson(lastReq()).slice(0, 80)}`);
+    await clickAct(".chat-apply-anyway", false);
+    rec("polishViolationApplyAnywayKeepsButtonsAndItemList",
+      $("content").value.startsWith("#{고객명}님, 주문이 접수되었습니다") && $("content").value.length > 1000
+        && btnNames().join(",") === "주문 상세 보기,배송 조회"
+        && d.querySelector("input[name=emph][value=ITEM_LIST]").checked && $("itHeader").value === "주문 내역",
+      `len=${$("content").value.length} buttons=${btnNames().join(",")} itemList=${d.querySelector("input[name=emph][value=ITEM_LIST]").checked} header=${$("itHeader").value}`);
+  });
+
+  /* ---------- 11-3) [다시 생성]: 같은 대화 기록으로 재요청. 재요청이 실패해도 이전 대화 기록은 남는다 ---------- */
+  await block(["retryResendsSameMessages", "retryFailureKeepsHistory"], async () => {
+    resetForm();
+    await newChat();
+    w.confirm = () => true;
+    await say("위반 테스트");
+    const reqA = lastReq(), nReq = chatReqs.length;
+    await clickAct(".chat-retry", true);
+    rec("retryResendsSameMessages", chatReqs.length === nReq + 1 && msgsJson(lastReq()) === msgsJson(reqA) && !!q(".chat-retry", lastBot()),
+      `requests+${chatReqs.length - nReq} same=${msgsJson(lastReq()) === msgsJson(reqA)} msgs=${msgsJson(lastReq()).slice(0, 80)}`);
+    // 두 번째 [다시 생성]은 502로 실패시킨다
+    fetchHook = () => jsonRes(502, { reason: "LLM_ERROR", message: "테스트용 재요청 실패입니다." });
+    await clickAct(".chat-retry", true);
+    const failShown = txt(lastBot()).includes("테스트용 재요청 실패입니다.");
+    fetchHook = null;
+    await say("더 짧게");
+    const m = (lastReq() && lastReq().messages) || [];
+    const ok = m.length >= 3 && m[m.length - 1].role === "user" && m[m.length - 1].text === "더 짧게"
+      && m.some(x => x.role === "user" && x.text === "위반 테스트")
+      && m.some(x => x.role === "assistant" && x.kind === "DRAFT");
+    rec("retryFailureKeepsHistory", failShown && ok, "failShown=" + failShown + " msgs=" + JSON.stringify(m).slice(0, 200));
+  });
+
+  /* ---------- 11-4) 다듬기 [적용]: 텍스트 항목만 바꾸고, 버튼·아이템리스트에만 쓰인 변수의 예시값은 남긴다 ---------- */
+  await block(["polishApplyUpdatesTextKeepsButtonVarSample", "polishApplyKeepsItemListVarSample"], async () => {
+    resetForm();
+    await newChat();
+    const cat = [...$("category").options].map(o => o.value).find(v => v && v !== $("category").value);
+    if (cat){ $("category").value = cat; $("category").dispatchEvent(new w.Event("change")); }
+    setVal("tplName", "다듬기 범위 이름");
+    setVal("tplCode", "POLISH_SCOPE_01");
+    d.querySelector("input[name=emph][value=TEXT]").click();
+    setVal("emTitle", "#{결제금액}원 결제");
+    setVal("emSub", "결제 완료 보조");
+    setVal("content", "#{고객명}님, 주문이 접수되었습니다.");
+    setVal("extra", "다듬기 범위 부가정보");
+    setVal("bmo0", "https://mystore.example.com/track/#{송장번호}");
+    setSample("송장번호", "TRACK-777");
+    setSample("고객명", "홍길순");
+    w.confirm = () => true;
+    await say("다듬어줘");
+    await clickAct(".chat-apply", false);
+    rec("polishApplyUpdatesTextKeepsButtonVarSample",
+      $("content").value === "[다듬음] #{고객명}님, 주문이 접수되었습니다." && $("tplName").value === "다듬기 범위 이름" && $("tplCode").value === "POLISH_SCOPE_01"
+        && (!cat || $("category").value === cat) && $("emTitle").value === "#{결제금액}원 결제" && $("emSub").value === "결제 완료 보조"
+        && $("extra").value === "다듬기 범위 부가정보" && sampleVal("고객명") === "홍길순"
+        && $("bmo0") && $("bmo0").value.includes("#{송장번호}") && sampleVal("송장번호") === "TRACK-777"
+        && $("pvBubble").textContent.includes("홍길순"),
+      `content=${$("content").value.slice(0, 20)} name=${$("tplName").value} 고객명=${sampleVal("고객명")} 송장번호(버튼 전용)=${sampleVal("송장번호")} bmo0=${$("bmo0") && $("bmo0").value}`);
+
+    resetForm();
+    await newChat();
+    d.querySelector("input[name=emph][value=ITEM_LIST]").click();
+    setVal("itHeader", "주문 내역");
+    const desc = need($("itemList").querySelector("[data-ik=desc]"), "아이템 내용 칸");
+    desc.value = "#{배송지}"; desc.dispatchEvent(new w.Event("input", { bubbles: true }));
+    setSample("배송지", "서울시 테스트구");
+    await say("다듬어줘");
+    await clickAct(".chat-apply", false);
+    rec("polishApplyKeepsItemListVarSample",
+      $("content").value.startsWith("[다듬음] ") && d.querySelector("input[name=emph][value=ITEM_LIST]").checked
+        && ($("itemList").querySelector("[data-ik=desc]") || {}).value === "#{배송지}" && sampleVal("배송지") === "서울시 테스트구",
+      `content=${$("content").value.slice(0, 15)} itemList=${d.querySelector("input[name=emph][value=ITEM_LIST]").checked} 배송지(아이템 전용)=${sampleVal("배송지")}`);
+  });
+
+  /* ---------- 11-5) 복합형(MI) 폼 다듬기 [적용]: 유형·부가정보·채널 추가 설정 유지 ---------- */
+  await block(["polishApplyKeepsMixedType"], async () => {
+    resetForm();
+    await newChat();
+    d.querySelector("input[name=msgType][value=MI]").click();
+    setVal("extra", "복합형 부가정보 원래 값");
+    w.confirm = () => true;
+    await say("다듬어줘");
+    await clickAct(".chat-apply", false);
+    rec("polishApplyKeepsMixedType",
+      $("content").value.startsWith("[다듬음] ") && d.querySelector("input[name=msgType][value=MI]").checked
+        && $("extra").value === "복합형 부가정보 원래 값" && $("btnList").textContent.includes("채널 추가 (AC)")
+        && $("pvBubble").textContent.includes("채널 추가"),
+      `content=${$("content").value.slice(0, 15)} MI=${d.querySelector("input[name=msgType][value=MI]").checked} extra=${$("extra").value} AC=${$("btnList").textContent.includes("채널 추가 (AC)")}`);
+  });
+
+  /* ---------- 11-6) 폼에 넣지 않은 초안도 다음 요청의 대화 기록에 assistant 발화로 남는다 ---------- */
+  await block(["unappliedDraftInHistoryAfterCancel", "violationDraftInHistory"], async () => {
+    const draftTurn = (m) => m.length === 3 && m[0].role === "user" && m[1].role === "assistant" && m[1].kind === "DRAFT"
+      && typeof m[1].text === "string" && m[1].text.length > 0 && m[2].role === "user" && m[2].text === "더 짧게";
+    resetForm();
+    await newChat();
+    setVal("tplName", "직접 수정한 이름");
+    w.confirm = () => false;
+    await say("주문 완료 알림 만들어줘");
+    const notApplied = $("tplName").value === "직접 수정한 이름";
+    await say("더 짧게");
+    const m1 = (lastReq() && lastReq().messages) || [];
+    rec("unappliedDraftInHistoryAfterCancel", notApplied && draftTurn(m1) && m1[0].text === "주문 완료 알림 만들어줘",
+      "notApplied=" + notApplied + " msgs=" + JSON.stringify(m1).slice(0, 200));
+    resetForm();
+    await newChat();
+    w.confirm = () => true;
+    await say("위반 테스트");
+    const violation = !!q(".chat-apply-anyway", lastBot());
+    await say("더 짧게");
+    const m2 = (lastReq() && lastReq().messages) || [];
+    rec("violationDraftInHistory", violation && draftTurn(m2) && m2[0].text === "위반 테스트",
+      "violation=" + violation + " msgs=" + JSON.stringify(m2).slice(0, 200));
+  });
+
+  /* ---------- 11-7) 경고는 챗봇 말풍선에 텍스트로 표시(HTML 실행 안 함) ---------- */
+  await block(["warningShownInChat", "warningEscaped"], async () => {
+    resetForm();
+    await newChat();
+    w.confirm = () => true;
+    await say("경고 테스트");
+    rec("warningShownInChat", txt(lastBot()).includes("쿠폰") && txt(lastBot()).includes("광고로 보일 수 있는 단어"),
+      "bot=" + txt(lastBot()).slice(0, 100));
+    const XSS = '<img src=x onerror="window.__xss=1">';
+    fetchHook = async (url, opts) => {
+      const res = await realFetch(url, opts), body = await res.json();
+      body.warnings = (body.warnings || []).concat([XSS]);
+      return jsonRes(res.status, body);
+    };
+    delete w.__xss;
+    await say("경고 테스트 2");
+    fetchHook = null;
+    await sleep(300);
+    const lb = lastBot();
+    rec("warningEscaped", txt(lb).includes(XSS) && !lb.querySelector("img") && w.__xss === undefined,
+      "textHasPayload=" + txt(lb).includes(XSS) + " imgEl=" + !!lb.querySelector("img") + " __xss=" + w.__xss);
+  });
+  fetchHook = null;
+
+  /* ---------- 11-8) 덮어쓰기 확인 창: 챗봇이 채운 뒤 손대지 않았으면 묻지 않고, 직접 고쳤으면 묻는다 ---------- */
+  await block(["noConfirmAfterChatFill", "noConfirmAfterPolishApply", "confirmAfterUserEdit"], async () => {
+    resetForm();
+    await newChat();
+    let calls = 0;
+    w.confirm = () => { calls++; return true; };
+    await say("주문 완료 알림 만들어줘");          // 예시 그대로인 폼 → 확인 없음
+    const c0 = calls;
+    await say("배송 안내 만들어줘");               // 챗봇이 채운 폼, 손대지 않음 → 확인 없어야 함
+    const filled = $("content").value.startsWith("[주문완료 안내]");
+    rec("noConfirmAfterChatFill", c0 === 0 && calls === 0 && filled, `firstFill=${c0} secondFill=${calls} filled=${filled}`);
+    calls = 0;
+    await say("다듬어줘");
+    await clickAct(".chat-apply", false);         // 다듬기 [적용]으로 채운 폼, 손대지 않음
+    const polished = $("content").value.startsWith("[다듬음] ");
+    await say("주문 완료 알림 만들어줘");
+    rec("noConfirmAfterPolishApply", polished && calls === 0 && $("content").value.startsWith("[주문완료 안내]"),
+      `polished=${polished} confirmCalls=${calls} content=${$("content").value.slice(0, 15)}`);
+    calls = 0;
+    setVal("tplName", "사용자가 고친 이름");     // 사용자가 직접 고침 → 확인해야 함
+    w.confirm = () => { calls++; return false; };
+    await say("배송 안내 만들어줘");
+    rec("confirmAfterUserEdit", calls === 1 && $("tplName").value === "사용자가 고친 이름", `confirmCalls=${calls} name=${$("tplName").value}`);
+    w.confirm = () => true;
   });
 
   /* ---------- 12) 본문이 비면 [지금 폼 다듬기] 비활성 ---------- */
@@ -417,6 +617,66 @@ f.addEventListener("load", async () => {
     resetForm();
     await sleep(100);
     rec("polishStartDisabledWhenEmpty", off && !q(".chat-start[data-polish]").disabled, "emptyDisabled=" + off + " afterResetEnabled=" + !q(".chat-start[data-polish]").disabled);
+  });
+
+  /* ---------- 12-1) 챗봇에 보내는 form 크기 줄이기 (폼(state)은 그대로, 보내는 값만 서버 한도에 맞춤) ----------
+     서버 한도: content·extra ≤2,000자, 나머지 문자열 ≤200자, samples ≤60개·키/값 ≤100자 (넘으면 400) */
+  /* 요청 응답 상태 기록: 실제 서버로 보내고 status만 남긴다 */
+  const chatStatuses = [];
+  const recordStatusHook = (url, opts) => realFetch(url, opts).then(r => { chatStatuses.push(r.status); return r; });
+  const errBubble = () => { const t = txt(lastBot()); return /오류|실패|잘못|요청을 처리/.test(t) ? t : ""; };
+
+  await block(["chatFormTrimmedSamples"], async () => {
+    resetForm();
+    await newChat();
+    d.querySelector("input[name=emph][value=NONE]").click();
+    // 본문에 변수 70개를 넣어 예시값을 입력(state.samples에 쌓임) → 본문을 #{고객명}만 쓰도록 바꿔 70개는 안 쓰이는 예시값으로 남긴다
+    const unused = Array.from({ length: 70 }, (_, i) => "안쓰는변수" + (i + 1));
+    setVal("content", unused.map(v => "#{" + v + "}").join(" "));
+    await sleep(100);
+    for (const v of unused) setSample(v, "값-" + v);
+    setVal("content", "#{고객명}님, 배송이 시작되었습니다.");
+    await sleep(100);
+    setSample("고객명", "가".repeat(150));
+    const keptInState = unused.every(v => sampleVal(v) === null);  // 칸은 사라졌는지(본문에서 뺐으므로)
+    w.confirm = () => true;
+    fetchHook = recordStatusHook;
+    const nSt = chatStatuses.length;
+    await say("배송 안내 만들어줘");
+    fetchHook = null;
+    const r = lastReq(), s = (r && r.form && r.form.samples) || {};
+    const keys = Object.keys(s);
+    const unusedSent = keys.filter(k => k.startsWith("안쓰는변수"));
+    const st = chatStatuses.slice(nSt);
+    rec("chatFormTrimmedSamples",
+      unusedSent.length === 0 && keys.length <= 60 && typeof s["고객명"] === "string" && s["고객명"].length === 100
+        && st.length === 1 && st[0] === 200 && !errBubble(),
+      `sentKeys=${keys.length} unusedSent=${unusedSent.length} 고객명len=${s["고객명"] && s["고객명"].length} status=${st.join(",")} unusedFieldsGone=${keptInState} err=${errBubble().slice(0, 60)}`);
+  });
+
+  await block(["chatFormTrimmedLongText"], async () => {
+    resetForm();
+    await newChat();
+    d.querySelector("input[name=emph][value=TEXT]").click();
+    const T = "제".repeat(250), C = "본".repeat(2500);
+    setVal("emTitle", T);
+    setVal("content", C);
+    // 초안이 와도 폼을 덮어쓰지 않도록 덮어쓰기 확인은 취소
+    w.confirm = () => false;
+    fetchHook = recordStatusHook;
+    const nSt = chatStatuses.length;
+    await say("배송 안내 만들어줘");
+    fetchHook = null;
+    await sleep(200);
+    const r = lastReq(), fm = (r && r.form) || {};
+    const st = chatStatuses.slice(nSt);
+    const titleLen = typeof fm.title === "string" ? fm.title.length : -1;
+    const contentLen = typeof fm.content === "string" ? fm.content.length : -1;
+    rec("chatFormTrimmedLongText",
+      st.length === 1 && st[0] === 200 && !errBubble() && titleLen >= 0 && titleLen <= 200 && contentLen >= 0 && contentLen <= 2000
+        && $("emTitle").value.length === 250 && $("content").value.length === 2500,
+      `status=${st.join(",")} sentTitle=${titleLen} sentContent=${contentLen} formTitle=${$("emTitle").value.length} formContent=${$("content").value.length} err=${errBubble().slice(0, 60)}`);
+    w.confirm = () => true;
   });
 
   /* ---------- 13) 대화 한도: 사용자 발화 10번(요청 messages 19개) 후 입력·선택지 잠금, 안내 #chatLimit, [새 대화]로 초기화 ---------- */

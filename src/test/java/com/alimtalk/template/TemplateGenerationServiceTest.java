@@ -213,6 +213,135 @@ class TemplateGenerationServiceTest {
         assertThat(s.draft().msgType()).isEqualTo("BA");
     }
 
+    // ---------- 범위 밖 유형 폼 다듬기 ----------
+
+    private static TemplateDraft formOf(String msgType, String emph, String title, String sub, String extra) {
+        return new TemplateDraft("003001", "배송 시작 안내", "SHIP_START_01", msgType, emph, title, sub,
+                "고객님 배송 시작했어요 #{고객명}", extra, false, java.util.Map.of("고객명", "홍길동"));
+    }
+
+    private static LlmOutput polished(String content, LlmOutput.MsgType type, LlmOutput.Emph emph,
+                                      String title, String sub, String extra) {
+        return new LlmOutput(LlmOutput.Status.OK, LlmOutput.Mode.POLISH, "정리했습니다.", List.of(),
+                new LlmOutput.DraftOut("003001", "배송 시작 안내", "SHIP_START_01", type, emph, title, sub, content, extra, false,
+                        List.of(new LlmOutput.Sample("고객명", "홍길동"))));
+    }
+
+    @Test
+    void polishCompositeFormKeepsExtraWhenClaudeClearsIt() throws Exception {
+        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.BA, LlmOutput.Emph.NONE, "", "", ""));
+
+        GenerationResult.Success s = (GenerationResult.Success) service.chat(List.of(u("더 정중하게")),
+                formOf("MI", "NONE", "", "", "문의: 고객센터"), "아디다스");
+
+        assertThat(s.draft().msgType()).isEqualTo("MI");
+        assertThat(s.draft().extra()).isEqualTo("문의: 고객센터");
+        assertThat(s.attempts()).isEqualTo(1);
+    }
+
+    @Test
+    void polishCompositeFormUsesClaudeExtraWhenGiven() throws Exception {
+        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.EX, LlmOutput.Emph.NONE, "", "", "문의: 1588-0000"));
+
+        GenerationResult.Success s = (GenerationResult.Success) service.chat(List.of(u("더 정중하게")),
+                formOf("MI", "NONE", "", "", "문의: 고객센터"), "아디다스");
+
+        assertThat(s.draft().extra()).isEqualTo("문의: 1588-0000");
+    }
+
+    @Test
+    void polishCompositeFormIsCheckedAsExtraInfoType() throws Exception {
+        LlmOutput noExtra = polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.BA, LlmOutput.Emph.NONE, "", "", "");
+        llm.then(noExtra).then(noExtra).then(noExtra);
+
+        GenerationResult r = service.chat(List.of(u("더 정중하게")), formOf("MI", "NONE", "", "", ""), "아디다스");
+
+        GenerationResult.RuleViolation v = (GenerationResult.RuleViolation) r;
+        assertThat(v.draft().msgType()).isEqualTo("MI");
+        assertThat(v.errors()).anyMatch(e -> e.contains("부가정보"));
+        assertThat(v.errors()).noneMatch(e -> e.contains("메시지 유형"));
+    }
+
+    @Test
+    void polishChannelAddFormIgnoresClaudeExtraAndChecksAsBasic() throws Exception {
+        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.EX, LlmOutput.Emph.NONE, "", "", ""));
+
+        GenerationResult r = service.chat(List.of(u("더 정중하게")), formOf("AD", "NONE", "", "", ""), "아디다스");
+
+        GenerationResult.Success s = (GenerationResult.Success) r;
+        assertThat(s.draft().msgType()).isEqualTo("AD");
+        assertThat(s.draft().extra()).isEmpty();
+        assertThat(s.attempts()).isEqualTo(1);
+    }
+
+    @Test
+    void polishChannelAddFormKeepsFormExtraOverClaudeExtra() throws Exception {
+        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.EX, LlmOutput.Emph.NONE, "", "", "새 부가정보"));
+
+        GenerationResult.Success s = (GenerationResult.Success) service.chat(List.of(u("더 정중하게")),
+                formOf("AD", "NONE", "", "", "숨은 값"), "아디다스");
+
+        assertThat(s.draft().extra()).isEqualTo("숨은 값");
+    }
+
+    @Test
+    void polishImageFormKeepsTitleAndSubFromForm() throws Exception {
+        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.BA, LlmOutput.Emph.TEXT, "새 제목", "새 보조", ""));
+
+        GenerationResult.Success s = (GenerationResult.Success) service.chat(List.of(u("더 정중하게")),
+                formOf("BA", "IMAGE", "폼 제목", "폼 보조", ""), "아디다스");
+
+        assertThat(s.draft().emph()).isEqualTo("IMAGE");
+        assertThat(s.draft().title()).isEqualTo("폼 제목");
+        assertThat(s.draft().sub()).isEqualTo("폼 보조");
+    }
+
+    @Test
+    void polishOutOfScopeAlignmentAppliesOnRetryToo() throws Exception {
+        llm.then(polished("#{고객명}님, " + "가".repeat(1100), LlmOutput.MsgType.EX, LlmOutput.Emph.NONE, "", "", ""))
+                .then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.EX, LlmOutput.Emph.NONE, "", "", ""));
+
+        GenerationResult r = service.chat(List.of(u("더 정중하게")), formOf("AD", "ITEM_LIST", "", "", ""), "아디다스");
+
+        GenerationResult.Success s = (GenerationResult.Success) r;
+        assertThat(s.attempts()).isEqualTo(2);
+        assertThat(s.draft().msgType()).isEqualTo("AD");
+        assertThat(s.draft().emph()).isEqualTo("ITEM_LIST");
+        assertThat(llm.userMessages.get(1)).contains("최대 1,000자").doesNotContain("부가정보는");
+    }
+
+    @Test
+    void polishWithNullFormTypesDoesNotFail() throws Exception {
+        TemplateDraft form = new TemplateDraft("003001", "배송 시작 안내", "SHIP_START_01", null, null, null, null,
+                "본문 #{고객명}", null, false, null);
+        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.BA, LlmOutput.Emph.NONE));
+
+        GenerationResult r = service.chat(List.of(u("다듬어줘")), form, "아디다스");
+
+        assertThat(r).isInstanceOf(GenerationResult.Success.class);
+        assertThat(((GenerationResult.Success) r).draft().msgType()).isEqualTo("BA");
+    }
+
+    @Test
+    void choicesLongerThan20AreDropped() throws Exception {
+        llm.then(ask("무엇을 넣을까요?", "상품명", "가".repeat(21), "가".repeat(20)));
+
+        GenerationResult.Asked a = (GenerationResult.Asked) service.chat(List.of(u("배송 안내")), EMPTY_FORM, "아디다스");
+
+        assertThat(a.choices()).containsExactly("상품명", "가".repeat(20));
+    }
+
+    @Test
+    void unexpectedExceptionIsRecordedAndRethrown() {
+        llm.thenFail(new IllegalStateException("boom"));
+
+        assertThatThrownBy(() -> service.chat(List.of(u("배송 안내")), EMPTY_FORM, "아디다스"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(recorded).hasSize(1);
+        assertThat(recorded.get(0).result()).isEqualTo("ERROR_UNEXPECTED");
+        assertThat(recorded.get(0).turns()).isEqualTo(1);
+    }
+
     @Test
     void successCarriesModeSummaryChoices() throws Exception {
         llm.then(new LlmOutput(LlmOutput.Status.OK, LlmOutput.Mode.NEW, "주문 완료 안내를 작성했습니다.",
@@ -405,6 +534,11 @@ class TemplateGenerationServiceTest {
             return this;
         }
 
+        ScriptedLlm thenFail(RuntimeException e) {
+            script.add(e);
+            return this;
+        }
+
         final List<List<com.alimtalk.llm.LlmTurn>> sentTurns = new ArrayList<>();
 
         @Override
@@ -417,6 +551,9 @@ class TemplateGenerationServiceTest {
             clock.advance(delay);
             Object next = script.poll();
             if (next instanceof LlmException e) {
+                throw e;
+            }
+            if (next instanceof RuntimeException e) {
                 throw e;
             }
             return new LlmResponse((LlmOutput) next, PER_CALL);

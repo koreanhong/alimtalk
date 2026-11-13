@@ -184,6 +184,83 @@ class ChatControllerTest {
         verify(service).chat(anyList(), any(), eq(""));
     }
 
+    // ---------- 이상한 요청·폼 크기 제한 ----------
+
+    private static String form(String name, String content, String extra, String samples) {
+        return "{\"category\":\"002001\",\"name\":\"" + name + "\",\"code\":\"C\",\"msgType\":\"EX\",\"emph\":\"NONE\","
+                + "\"title\":\"\",\"sub\":\"\",\"content\":\"" + content + "\",\"extra\":\"" + extra + "\",\"security\":false,"
+                + "\"samples\":" + samples + "}";
+    }
+
+    private static String samples(int count, int keyLen, int valueLen) {
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < count; i++) {
+            if (i > 0) sb.append(',');
+            String key = (i + "k" + "가".repeat(keyLen)).substring(0, Math.max(keyLen, 1));
+            sb.append('"').append(key).append("\":\"").append("나".repeat(valueLen)).append('"');
+        }
+        return sb.append('}').toString();
+    }
+
+    private void expect400(String body, String messagePart) throws Exception {
+        post(body).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(messagePart)));
+        verify(service, never()).chat(any(), any(), any());
+    }
+
+    @Test
+    void nullMessageIs400() throws Exception {
+        expect400("{\"messages\":[null],\"channel\":\"@mystore\"}", "발화");
+    }
+
+    @Test
+    void formContentOver2000Is400() throws Exception {
+        expect400(body(msg("user", "다듬어줘"), "@mystore", form("주문", "가".repeat(2001), "", "{}")), "본문");
+    }
+
+    @Test
+    void formExtraOver2000Is400() throws Exception {
+        expect400(body(msg("user", "다듬어줘"), "@mystore", form("주문", "본문", "가".repeat(2001), "{}")), "부가정보");
+    }
+
+    @Test
+    void formShortFieldOver200Is400() throws Exception {
+        expect400(body(msg("user", "다듬어줘"), "@mystore", form("가".repeat(201), "본문", "", "{}")), "이름");
+    }
+
+    @Test
+    void formTooManySamplesIs400() throws Exception {
+        expect400(body(msg("user", "다듬어줘"), "@mystore", form("주문", "본문", "", samples(61, 5, 5))), "예시값");
+    }
+
+    @Test
+    void formSampleKeyOver100Is400() throws Exception {
+        expect400(body(msg("user", "다듬어줘"), "@mystore", form("주문", "본문", "", samples(1, 101, 5))), "예시값");
+    }
+
+    @Test
+    void formSampleValueOver100Is400() throws Exception {
+        expect400(body(msg("user", "다듬어줘"), "@mystore", form("주문", "본문", "", samples(1, 5, 101))), "예시값");
+    }
+
+    @Test
+    void formAtLimitsIsAccepted() throws Exception {
+        when(service.chat(anyList(), any(), anyString())).thenReturn(new GenerationResult.Asked("q", List.of()));
+        String f = form("가".repeat(200), "가".repeat(2000), "가".repeat(2000), samples(60, 100, 100));
+
+        post(body(msg("user", "다듬어줘"), "@mystore", f)).andExpect(status().isOk());
+    }
+
+    @Test
+    void formWithNullTypesIsAccepted() throws Exception {
+        when(service.chat(anyList(), any(), anyString())).thenReturn(new GenerationResult.Asked("q", List.of()));
+        String f = "{\"category\":\"002001\",\"name\":\"주문\",\"code\":\"C\",\"msgType\":null,\"emph\":null,"
+                + "\"content\":\"본문\",\"samples\":null}";
+
+        post(body(msg("user", "다듬어줘"), "@mystore", f)).andExpect(status().isOk());
+    }
+
     @Test
     void timeoutIs504() throws Exception {
         when(service.chat(anyList(), any(), anyString())).thenThrow(new LlmException(LlmException.Kind.TIMEOUT, "t"));

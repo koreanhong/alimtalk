@@ -42,6 +42,35 @@ class PromptBuilderTest {
     }
 
     @Test
+    void formContextAsksToKeepExtraForExtraInfoTypes() {
+        for (String type : List.of("EX", "MI")) {
+            TemplateDraft form = new TemplateDraft("003001", "배송", "C", type, "NONE", "", "", "본문", "문의", false, Map.of());
+            assertThat(builder.formContext(form)).contains("부가정보를 비우지 말고");
+        }
+        TemplateDraft basic = new TemplateDraft("003001", "배송", "C", "BA", "NONE", "", "", "본문", "", false, Map.of());
+        assertThat(builder.formContext(basic)).doesNotContain("부가정보를 비우지 말고");
+    }
+
+    @Test
+    void formContextIncludesSecurityFlag() {
+        TemplateDraft secure = new TemplateDraft("004001", "인증", "C", "BA", "NONE", "", "", "인증번호 #{번호}", "", true, Map.of());
+        TemplateDraft normal = new TemplateDraft("004001", "인증", "C", "BA", "NONE", "", "", "인증번호 #{번호}", "", false, Map.of());
+
+        assertThat(builder.formContext(secure)).contains("- 보안 템플릿: 예");
+        assertThat(builder.formContext(normal)).contains("- 보안 템플릿: 아니오");
+    }
+
+    @Test
+    void formContextShowsNullFieldsAsBlank() {
+        TemplateDraft form = new TemplateDraft(null, "배송", null, null, null, null, null, "본문", null, false, null);
+
+        String ctx = builder.formContext(form);
+
+        assertThat(ctx).doesNotContain("null");
+        assertThat(ctx).contains("- 카테고리: \n", "- 본문:\n본문");
+    }
+
+    @Test
     void formContextForEmptyForm() {
         TemplateDraft empty = new TemplateDraft("", "", "", "", "", "", "", "", "", false, Map.of());
 

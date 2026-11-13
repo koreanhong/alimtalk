@@ -47,7 +47,9 @@ public class PromptBuilder {
         if (form == null || isEmpty(form)) {
             return "현재 폼: 비어 있음";
         }
-        return "현재 폼:\n" + describe(form);
+        String keepExtra = "EX".equals(form.msgType()) || "MI".equals(form.msgType())
+                ? "※ 부가정보가 있는 유형이다. 다듬을 때 부가정보를 비우지 말고 유지하며 함께 다듬는다.\n" : "";
+        return "현재 폼:\n" + describe(form) + keepExtra;
     }
 
     private static boolean isEmpty(TemplateDraft d) {
@@ -99,22 +101,28 @@ public class PromptBuilder {
 
     private static String describe(TemplateDraft d) {
         StringBuilder sb = new StringBuilder();
-        sb.append("- 카테고리: ").append(d.category()).append('\n')
-                .append("- 이름: ").append(d.name()).append('\n')
-                .append("- 코드: ").append(d.code()).append('\n')
-                .append("- 메시지 유형: ").append(d.msgType()).append('\n')
-                .append("- 강조 유형: ").append(d.emph()).append('\n');
+        sb.append("- 카테고리: ").append(nz(d.category())).append('\n')
+                .append("- 이름: ").append(nz(d.name())).append('\n')
+                .append("- 코드: ").append(nz(d.code())).append('\n')
+                .append("- 메시지 유형: ").append(nz(d.msgType())).append('\n')
+                .append("- 강조 유형: ").append(nz(d.emph())).append('\n')
+                .append("- 보안 템플릿: ").append(d.security() ? "예" : "아니오").append('\n');
         if ("TEXT".equals(d.emph())) {
-            sb.append("- 강조 제목: ").append(d.title()).append('\n')
-                    .append("- 보조 문구: ").append(d.sub()).append('\n');
+            sb.append("- 강조 제목: ").append(nz(d.title())).append('\n')
+                    .append("- 보조 문구: ").append(nz(d.sub())).append('\n');
         }
-        sb.append("- 본문:\n").append(d.content()).append('\n');
+        sb.append("- 본문:\n").append(nz(d.content())).append('\n');
         if ("EX".equals(d.msgType()) || "MI".equals(d.msgType())) {
-            sb.append("- 부가정보:\n").append(d.extra()).append('\n');
+            sb.append("- 부가정보:\n").append(nz(d.extra())).append('\n');
         }
         if (d.samples() != null && !d.samples().isEmpty()) {
             sb.append("- 예시값: ").append(d.samples()).append('\n');
         }
         return sb.toString();
+    }
+
+    /** 폼 값이 없으면(null) "null" 글자 대신 빈칸으로 보낸다. */
+    private static String nz(String s) {
+        return s == null ? "" : s;
     }
 }

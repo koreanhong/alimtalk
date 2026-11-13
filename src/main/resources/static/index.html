@@ -685,6 +685,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
 
   $("resetBtn").addEventListener("click", () => {
     state = structuredClone(SAMPLE);
+    baseline = formJson(SAMPLE);
     clearImages();
     fillForm(); update(); toast("예시 템플릿으로 되돌렸습니다.");
   });
@@ -715,9 +716,10 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
   }
 
   /* ---------- 초안 적용 ---------- */
-  function formEdited(){
-    return FORM_KEYS.some(k => JSON.stringify(state[k]) !== JSON.stringify(SAMPLE[k]));
-  }
+  /* 덮어쓰기 확인 기준(baseline): 마지막으로 챗봇이 채운 폼 상태. 처음·[예시로 되돌리기] 후에는 예시(SAMPLE) */
+  function formJson(s){ return JSON.stringify(FORM_KEYS.map(k => s[k] === undefined ? null : s[k])); }
+  let baseline = formJson(SAMPLE);
+  function formEdited(){ return formJson(state) !== baseline; }
 
   /* 새로 만들기: 폼이 수정됐으면 확인 후 덮어쓰고, 버튼·아이템리스트·이미지는 비운다 */
   function applyDraft(draft){
@@ -731,6 +733,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     }
     clearImages();
     fillForm(); update();
+    baseline = formJson(state);
     return true;
   }
 
@@ -738,15 +741,17 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
      자동 작성 범위 밖 유형(채널추가형·복합형, 이미지형·아이템리스트형)은 폼 값을 유지한다. */
   const POLISH_KEYS = ["category", "name", "code", "msgType", "emph", "title", "sub", "content", "extra", "security", "samples"];
   function applyPolish(draft){
+    const untouched = !formEdited();  // 적용 전에 사용자가 고친 게 없을 때만 기준을 옮긴다
     const keepMsgType = state.msgType === "AD" || state.msgType === "MI";
     const keepEmph = state.emph === "IMAGE" || state.emph === "ITEM_LIST";
     for (const k of POLISH_KEYS){
       if ((k === "msgType" && keepMsgType) || (k === "emph" && keepEmph)) continue;
-      if (k === "samples") state.samples = { ...(draft.samples || {}) };
+      if (k === "samples") state.samples = { ...state.samples, ...(draft.samples || {}) };  // 버튼·아이템리스트에만 쓰인 변수 예시값 유지
       else if (k === "security") state.security = !!draft.security;
       else state[k] = draft[k] == null ? "" : String(draft[k]);
     }
     fillForm(); update();
+    if (untouched) baseline = formJson(state);
   }
 
   /* ---------- 대화형 세팅 (챗봇) ---------- */
@@ -764,9 +769,38 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
   let activeChoices = null;   // 누를 수 있는 선택지 묶음(가장 최근 챗봇 응답의 것)
   let lastReply = null;       // 가장 최근 챗봇 응답 말풍선([다시 생성]은 여기서만)
 
+  /* 챗봇에 보내는 폼 크기 한도. 서버 TemplateDraft의 @Size 값과 맞춘다(넘으면 400).
+     폼(state)은 그대로 두고 보내는 값만 줄인다. */
+  const CHAT_FORM_LIMIT = { longText: 2000, text: 200, samples: 60, sampleKey: 100, sampleVal: 100 };
+  const CHAT_LONG_KEYS = ["content", "extra"];
+  const CHAT_VAR_KEYS = ["name", "title", "sub", "content", "extra"];  // 예시값을 보낼 변수를 찾는 칸
+  /* UTF-16 길이(서버 String.length와 같은 기준)로 자르고, 끝에 반쪽 남은 이모지 등은 버린다 */
+  function clip(s, max){
+    if (s.length <= max) return s;
+    const c = s.slice(0, max);
+    return /[\uD800-\uDBFF]$/.test(c) ? c.slice(0, -1) : c;
+  }
+
   function formSnapshot(){
     const f = {};
-    for (const k of POLISH_KEYS) f[k] = k === "samples" ? { ...state.samples } : k === "security" ? !!state.security : String(state[k] == null ? "" : state[k]);
+    for (const k of POLISH_KEYS){
+      if (k === "samples" || k === "security") continue;
+      const max = CHAT_LONG_KEYS.includes(k) ? CHAT_FORM_LIMIT.longText : CHAT_FORM_LIMIT.text;
+      f[k] = clip(String(state[k] == null ? "" : state[k]), max);
+    }
+    f.security = !!state.security;
+    /* 예시값: 보내는 텍스트 칸에 실제 쓰인 변수만, 60개까지 */
+    const samples = {};
+    let n = 0;
+    for (const k of CHAT_VAR_KEYS){
+      for (const v of varsIn(f[k])){
+        if (n >= CHAT_FORM_LIMIT.samples) break;
+        if (Object.hasOwn(samples, v) || v.length > CHAT_FORM_LIMIT.sampleKey || !Object.hasOwn(state.samples, v)) continue;
+        samples[v] = clip(String(state.samples[v] == null ? "" : state.samples[v]), CHAT_FORM_LIMIT.sampleVal);
+        n++;
+      }
+    }
+    f.samples = samples;
     return f;
   }
 
@@ -841,8 +875,10 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     chatRequest(chatHistory.slice());
   }
 
-  /* sent: 이번에 보낼 대화 기록(마지막은 사용자 발화). 성공하면 chatHistory = sent + 응답 */
-  async function chatRequest(sent){
+  /* sent: 이번에 보낼 대화 기록(마지막은 사용자 발화). 성공하면 chatHistory = sent + 응답.
+     onFail: 실패 시 되돌릴 기록. 없으면 답을 받지 못한 마지막 발화만 뺀다([다시 생성]은 재요청 직전 기록을 넘김) */
+  async function chatRequest(sent, onFail){
+    const failHistory = onFail ? onFail.slice() : sent.slice(0, -1);
     const conv = chatConv;
     setBusy(true);
     const ctrl = new AbortController(); chatCtrl = ctrl;
@@ -859,13 +895,13 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
       if (res.ok && data && data.kind){
         handleReply(data, sent);
       } else {
-        chatHistory = sent.slice(0, -1);  // 답을 받지 못한 발화는 기록에서 뺀다(말풍선은 남김)
+        chatHistory = failHistory.slice();  // 답을 받지 못한 발화는 기록에서 뺀다(말풍선은 남김)
         const msg = (data && data.message) || (res.status === 504 ? "응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요." : "템플릿 작성 중 오류가 발생했습니다.");
         addMsg("bot", esc(msg), "err");
       }
     } catch (err) {
       if (conv !== chatConv) return;
-      chatHistory = sent.slice(0, -1);
+      chatHistory = failHistory.slice();
       addMsg("bot", esc(err && err.name === "AbortError" ? "응답이 너무 오래 걸려 중단했습니다. 잠시 후 다시 시도해 주세요." : "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."), "err");
     } finally {
       clearTimeout(timer);
@@ -927,7 +963,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
         acts.appendChild(makeBtn("chat-act chat-retry", polish ? "다시 다듬기" : "다시 생성", () => {
           if (chatBusy || m !== lastReply) return;
           finishActs(m, null);
-          chatRequest(sent.slice());  // 같은 대화 기록을 그대로 다시 요청
+          chatRequest(sent.slice(), chatHistory.slice());  // 같은 대화 기록을 그대로 다시 요청, 실패하면 지금 기록(위반 응답 포함) 유지
         }));
       } else if (polish){
         html += previewHtml(draft) + issuesHtml([], warnings);
