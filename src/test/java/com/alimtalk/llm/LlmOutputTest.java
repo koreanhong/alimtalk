@@ -24,7 +24,8 @@ class LlmOutputTest {
 
     @Test
     void statusAndTypesAreEnumsWithAllowedValuesOnly() {
-        assertThat(constants(typeOf(LlmOutput.class, "status"))).containsExactly("OK", "AD_CONTENT", "UNCLEAR");
+        assertThat(constants(typeOf(LlmOutput.class, "status"))).containsExactly("OK", "ASK", "AD_CONTENT");
+        assertThat(constants(typeOf(LlmOutput.class, "mode"))).containsExactly("NEW", "POLISH");
         assertThat(constants(typeOf(LlmOutput.DraftOut.class, "msgType"))).containsExactly("BA", "EX");
         assertThat(constants(typeOf(LlmOutput.DraftOut.class, "emph"))).containsExactly("NONE", "TEXT");
     }
@@ -37,6 +38,14 @@ class LlmOutputTest {
                         .format(LlmOutput.class)
                         .build())
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void choicesIsListOfStrings() throws Exception {
+        assertThat(typeOf(LlmOutput.class, "choices")).isEqualTo(List.class);
+        var generic = Arrays.stream(LlmOutput.class.getRecordComponents())
+                .filter(c -> c.getName().equals("choices")).findFirst().orElseThrow().getGenericType().getTypeName();
+        assertThat(generic).isEqualTo("java.util.List<java.lang.String>");
     }
 
     @Test

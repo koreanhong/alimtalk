@@ -23,12 +23,12 @@ public class FakeLlmClient implements LlmClient {
     private LlmOutput answer(String user) {
         String request = user.lines().filter(l -> l.startsWith("요청: ")).findFirst().orElse(user);
         if (request.contains("광고")) {
-            return new LlmOutput(LlmOutput.Status.AD_CONTENT, "알림톡으로는 광고를 보낼 수 없습니다. 브랜드 메시지를 이용해 주세요.", null);
+            return new LlmOutput(LlmOutput.Status.AD_CONTENT, LlmOutput.Mode.NEW, "알림톡으로는 광고를 보낼 수 없습니다. 브랜드 메시지를 이용해 주세요.", List.of(), null);
         }
         String content = request.contains("위반")
                 ? "#{고객명}님, 주문이 접수되었습니다.\n" + "가".repeat(1100)
                 : "[주문완료 안내]\n안녕하세요 #{고객명}님.\n주문이 완료되었습니다.\n\n▶ 주문번호: #{주문번호}\n▶ 상품명: #{상품명}";
-        return new LlmOutput(LlmOutput.Status.OK, "", new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01",
+        return new LlmOutput(LlmOutput.Status.OK, LlmOutput.Mode.NEW, "", List.of(), new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01",
                 LlmOutput.MsgType.EX, LlmOutput.Emph.NONE, "", "", content, "문의: 고객센터 1588-0000", false,
                 List.of(new LlmOutput.Sample("고객명", "홍길동"),
                         new LlmOutput.Sample("주문번호", "20261112-0001"),

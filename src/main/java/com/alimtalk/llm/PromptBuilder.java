@@ -40,6 +40,25 @@ public class PromptBuilder {
         return channelLine + "요청: " + prompt;
     }
 
+    /** 질문이 연속 3번이면 대화 끝에 붙이는 운영 지시. */
+    public static final String FORCE_DRAFT = "이미 여러 번 질문했다. 이번에는 질문하지 말고 지금까지의 정보로 템플릿을 작성하라(status=OK). 모르는 값은 변수로 둔다.";
+
+    /** 사용자 화면의 현재 폼(텍스트 항목만). 매 요청 달라지므로 시스템 프롬프트가 아니라 메시지에 넣는다. */
+    public String formContext(TemplateDraft form) {
+        if (form == null || isEmpty(form)) {
+            return "현재 폼: 비어 있음";
+        }
+        return "현재 폼:\n" + describe(form);
+    }
+
+    private static boolean isEmpty(TemplateDraft d) {
+        return blank(d.name()) && blank(d.content()) && blank(d.title()) && blank(d.sub()) && blank(d.extra());
+    }
+
+    private static boolean blank(String s) {
+        return s == null || s.isBlank();
+    }
+
     public String retry(String prompt, String channelName, TemplateDraft previous, List<String> errors) {
         return user(prompt, channelName)
                 + "\n\n아래는 직전에 작성한 템플릿입니다.\n" + describe(previous)
@@ -53,7 +72,7 @@ public class PromptBuilder {
                 .map(c -> "- " + c + ": " + CATEGORY_NAMES.getOrDefault(c, c))
                 .collect(Collectors.joining("\n"));
         return guide
-                + "\n\n## 5. 형식 목표 (반드시 지킨다)\n"
+                + "\n\n## 6. 형식 목표 (반드시 지킨다)\n"
                 + "- 강조 제목·보조 문구·본문·부가정보를 합친 길이: 변수를 예시값으로 바꿨을 때 " + rules.promptLengthTarget() + "자 이내\n"
                 + "- 부가정보: " + target(lim.extra()) + "자 이내\n"
                 + "- 강조 제목·보조 문구: 각각 " + target(lim.title()) + "자 이내\n"
@@ -62,7 +81,7 @@ public class PromptBuilder {
                 + "- 변수: " + target(lim.vars()) + "개 이하\n"
                 + "- 메시지 유형: " + String.join(", ", rules.msgTypes()) + " / 강조 유형: " + String.join(", ", rules.emphTypes()) + "\n"
                 + "- 쓰지 않는 표현: " + String.join(", ", rules.bannedPhrases()) + "\n"
-                + "\n## 6. 카테고리 코드 (이 중 하나만 쓴다)\n" + categories + "\n";
+                + "\n## 7. 카테고리 코드 (이 중 하나만 쓴다)\n" + categories + "\n";
     }
 
     /** 실제 제한의 70%를 목표로 준다. */
@@ -82,7 +101,7 @@ public class PromptBuilder {
                     .append("- 보조 문구: ").append(d.sub()).append('\n');
         }
         sb.append("- 본문:\n").append(d.content()).append('\n');
-        if ("EX".equals(d.msgType())) {
+        if ("EX".equals(d.msgType()) || "MI".equals(d.msgType())) {
             sb.append("- 부가정보:\n").append(d.extra()).append('\n');
         }
         if (d.samples() != null && !d.samples().isEmpty()) {

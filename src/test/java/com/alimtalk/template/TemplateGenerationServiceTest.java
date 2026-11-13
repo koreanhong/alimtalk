@@ -44,7 +44,7 @@ class TemplateGenerationServiceTest {
             recorded::add, USAGE_PROPS);
 
     private static LlmOutput ok(String content) {
-        return new LlmOutput(LlmOutput.Status.OK, "", new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01",
+        return new LlmOutput(LlmOutput.Status.OK, LlmOutput.Mode.NEW, "", List.of(), new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01",
                 LlmOutput.MsgType.BA, LlmOutput.Emph.NONE, "", "", content, "", false, List.of(new LlmOutput.Sample("고객명", "홍길동"))));
     }
 
@@ -103,7 +103,7 @@ class TemplateGenerationServiceTest {
     }
 
     private static LlmOutput withMessage(LlmOutput out, String message) {
-        return new LlmOutput(out.status(), message, out.draft());
+        return new LlmOutput(out.status(), out.mode(), message, out.choices(), out.draft());
     }
 
     @Test
@@ -164,7 +164,7 @@ class TemplateGenerationServiceTest {
 
     @Test
     void recordsRejectionWithoutDraftFields() throws Exception {
-        llm.then(new LlmOutput(LlmOutput.Status.AD_CONTENT, "광고 불가", null));
+        llm.then(new LlmOutput(LlmOutput.Status.AD_CONTENT, LlmOutput.Mode.NEW, "광고 불가", List.of(), null));
 
         service.generate("이번 주말 할인 행사 홍보해줘", "마이스토어");
 
@@ -208,7 +208,7 @@ class TemplateGenerationServiceTest {
 
     @Test
     void adContentIsRejectedWithoutValidation() throws Exception {
-        llm.then(new LlmOutput(LlmOutput.Status.AD_CONTENT, "알림톡으로는 광고를 보낼 수 없습니다.", null));
+        llm.then(new LlmOutput(LlmOutput.Status.AD_CONTENT, LlmOutput.Mode.NEW, "알림톡으로는 광고를 보낼 수 없습니다.", List.of(), null));
 
         GenerationResult r = service.generate("할인 쿠폰 홍보 보내줘", "마이스토어");
 
@@ -238,7 +238,7 @@ class TemplateGenerationServiceTest {
 
     @Test
     void nullFieldsAreTreatedAsEmpty() throws Exception {
-        llm.then(new LlmOutput(LlmOutput.Status.OK, null, new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01",
+        llm.then(new LlmOutput(LlmOutput.Status.OK, LlmOutput.Mode.NEW, null, List.of(), new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01",
                 LlmOutput.MsgType.BA, LlmOutput.Emph.NONE, null, null, "#{고객명}님, 주문이 접수되었습니다.", null, false,
                 List.of(new LlmOutput.Sample("고객명", "홍길동")))));
 

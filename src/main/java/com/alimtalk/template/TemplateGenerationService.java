@@ -102,7 +102,8 @@ public class TemplateGenerationService {
                 throw new LlmException(LlmException.Kind.INVALID_OUTPUT, "LLM 응답에 상태가 없습니다");
             }
             if (out.status() != LlmOutput.Status.OK) {
-                return new GenerationResult.Rejected(out.status().name(), out.message() == null ? "" : out.message());
+                String reason = out.status() == LlmOutput.Status.ASK ? "UNCLEAR" : out.status().name();
+                return new GenerationResult.Rejected(reason, out.message() == null ? "" : out.message());
             }
             if (out.draft() == null) {
                 throw new LlmException(LlmException.Kind.INVALID_OUTPUT, "LLM 응답에 초안이 없습니다");

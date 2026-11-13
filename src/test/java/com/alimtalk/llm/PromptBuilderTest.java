@@ -28,6 +28,41 @@ class PromptBuilderTest {
     }
 
     @Test
+    void formContextListsTextFields() {
+        TemplateDraft form = new TemplateDraft("003001", "배송 시작 안내", "SHIP_START_01", "EX", "TEXT",
+                "#{송장번호}", "배송 시작", "#{고객명}님, 배송이 시작되었습니다.", "문의: 고객센터", false,
+                Map.of("고객명", "홍길동", "송장번호", "1234"));
+
+        String ctx = builder.formContext(form);
+
+        assertThat(ctx).startsWith("현재 폼:");
+        assertThat(ctx).contains("003001", "배송 시작 안내", "EX", "TEXT", "#{고객명}님, 배송이 시작되었습니다.",
+                "문의: 고객센터", "고객명=홍길동");
+        assertThat(ctx).doesNotContain("버튼");
+    }
+
+    @Test
+    void formContextForEmptyForm() {
+        TemplateDraft empty = new TemplateDraft("", "", "", "", "", "", "", "", "", false, Map.of());
+
+        assertThat(builder.formContext(empty)).isEqualTo("현재 폼: 비어 있음");
+        assertThat(builder.formContext(null)).isEqualTo("현재 폼: 비어 있음");
+    }
+
+    @Test
+    void systemContainsConversationRules() {
+        String system = builder.system();
+
+        assertThat(system).contains("ASK").contains("POLISH").contains("choices");
+        assertThat(system).doesNotContain("가장 일반적인 경우로 작성");
+    }
+
+    @Test
+    void forceDraftInstructionForbidsFurtherQuestions() {
+        assertThat(PromptBuilder.FORCE_DRAFT).contains("질문하지 말고");
+    }
+
+    @Test
     void userOmitsChannelLineWhenBlank() {
         assertThat(builder.user("주문 관련 메시지 세팅해줘", "")).doesNotContain("발신 채널");
         assertThat(builder.user("주문 관련 메시지 세팅해줘", "마이스토어")).contains("발신 채널: 마이스토어");

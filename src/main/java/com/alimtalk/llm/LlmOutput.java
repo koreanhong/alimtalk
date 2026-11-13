@@ -11,11 +11,15 @@ import java.util.Map;
  * 상태·유형은 enum으로 두어 SDK가 만드는 JSON 스키마에서 허용값만 받도록 한다(화면 계약은 TemplateDraft의 문자열).
  */
 public record LlmOutput(
-        @JsonPropertyDescription("OK: 템플릿 작성, AD_CONTENT: 광고성 요청이라 작성 불가, UNCLEAR: 요청이 불명확함")
+        @JsonPropertyDescription("OK: 템플릿 작성(새로 만들기 또는 다듬기), ASK: 작성에 필요한 정보를 묻는 질문, AD_CONTENT: 광고성 요청이라 작성 불가")
         Status status,
-        @JsonPropertyDescription("사용자에게 보여줄 한국어 한 문장. status가 OK가 아니면 거절·질문 이유. OK인데 애매한 요청을 가정해서 작성했다면 가정한 내용(예: 주문 완료 안내로 가정했습니다). 가정이 없으면 빈 문자열")
+        @JsonPropertyDescription("NEW: 새 메시지를 만들어 달라는 요청, POLISH: 현재 폼 내용을 고쳐 달라는 요청. ASK·AD_CONTENT일 때도 요청의 성격대로 채운다")
+        Mode mode,
+        @JsonPropertyDescription("사용자에게 보여줄 한국어 한 문장. ASK면 질문, OK면 작성·변경 내용 한 줄 요약, AD_CONTENT면 거절 이유")
         String message,
-        @JsonPropertyDescription("템플릿 초안. status가 OK가 아니면 모든 문자열을 빈 문자열로 채운다")
+        @JsonPropertyDescription("버튼으로 보여줄 선택지(최대 6개, 각 20자 이내). ASK면 질문의 답 후보, OK면 후속 제안(예: 고객센터 안내 추가). 없으면 빈 배열")
+        List<String> choices,
+        @JsonPropertyDescription("템플릿 초안. status가 OK가 아니면 모든 문자열을 빈 문자열로, 배열은 빈 배열로 채운다")
         DraftOut draft) {
 
     public record DraftOut(
@@ -49,7 +53,9 @@ public record LlmOutput(
             @JsonPropertyDescription("변수 이름 (#{ } 없이)") String name,
             @JsonPropertyDescription("예시값") String value) {}
 
-    public enum Status { OK, AD_CONTENT, UNCLEAR }
+    public enum Status { OK, ASK, AD_CONTENT }
+
+    public enum Mode { NEW, POLISH }
 
     public enum MsgType { BA, EX }
 
