@@ -46,7 +46,7 @@ class TemplateControllerTest {
 
     @Test
     void successReturns200WithDraft() throws Exception {
-        when(service.generate("주문 관련 메시지 세팅해줘", "마이스토어"))
+        when(service.generate("주문 관련 메시지 세팅해줘", "아디다스"))
                 .thenReturn(new GenerationResult.Success(DRAFT, List.of("경고"), 1));
 
         postPrompt("주문 관련 메시지 세팅해줘")
