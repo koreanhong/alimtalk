@@ -14,8 +14,10 @@ import org.springframework.stereotype.Component;
 public class FakeLlmClient implements LlmClient {
 
     @Override
-    public LlmResponse generate(String system, String user, Duration timeout) {
-        return new LlmResponse(answer(user), LlmUsage.ZERO);
+    public LlmResponse generate(String system, List<LlmTurn> turns, Duration timeout) {
+        String lastUser = turns.stream().filter(t -> t.role() == LlmTurn.Role.USER)
+                .reduce((first, second) -> second).map(LlmTurn::text).orElse("");
+        return new LlmResponse(answer(lastUser), LlmUsage.ZERO);
     }
 
     private LlmOutput answer(String user) {

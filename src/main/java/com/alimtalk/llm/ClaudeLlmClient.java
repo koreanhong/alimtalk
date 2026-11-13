@@ -13,6 +13,7 @@ import com.anthropic.models.messages.StopReason;
 import com.anthropic.models.messages.StructuredMessage;
 import com.anthropic.models.messages.StructuredMessageCreateParams;
 import com.anthropic.models.messages.StructuredOutputConfig;
+import com.anthropic.models.messages.SystemMessageParam;
 import com.anthropic.models.messages.TextBlockParam;
 import java.io.InterruptedIOException;
 import java.time.Duration;
@@ -74,9 +75,9 @@ public class ClaudeLlmClient implements LlmClient {
     }
 
     @Override
-    public LlmResponse generate(String system, String user, Duration timeout) throws LlmException {
+    public LlmResponse generate(String system, List<LlmTurn> turns, Duration timeout) throws LlmException {
         try {
-            return call(system, user, timeout);
+            return call(system, turns, timeout);
         } catch (LlmException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -86,20 +87,31 @@ public class ClaudeLlmClient implements LlmClient {
         }
     }
 
-    private LlmResponse call(String system, String user, Duration timeout) throws LlmException {
-        StructuredMessageCreateParams<LlmOutput> params = MessageCreateParams.builder()
+    /** 시스템 프롬프트(캐시 지정)와 대화 턴을 순서대로 담은 요청을 만든다. */
+    StructuredMessageCreateParams<LlmOutput> buildParams(String system, List<LlmTurn> turns) {
+        StructuredMessageCreateParams.Builder<LlmOutput> builder = MessageCreateParams.builder()
                 .model(props.model())
                 .maxTokens(props.maxTokens())
                 .systemOfTextBlockParams(List.of(TextBlockParam.builder()
                         .text(system)
                         .cacheControl(CacheControlEphemeral.builder().build())
                         .build()))
-                .addUserMessage(user)
                 .outputConfig(StructuredOutputConfig.<LlmOutput>builder()
                         .format(LlmOutput.class)
                         .effort(OutputConfig.Effort.of(props.effort()))
-                        .build())
-                .build();
+                        .build());
+        for (LlmTurn turn : turns) {
+            switch (turn.role()) {
+                case USER -> builder.addUserMessage(turn.text());
+                case ASSISTANT -> builder.addAssistantMessage(turn.text());
+                case SYSTEM -> builder.addMessage(SystemMessageParam.builder().content(turn.text()).build());
+            }
+        }
+        return builder.build();
+    }
+
+    private LlmResponse call(String system, List<LlmTurn> turns, Duration timeout) throws LlmException {
+        StructuredMessageCreateParams<LlmOutput> params = buildParams(system, turns);
 
         CompletableFuture<StructuredMessage<LlmOutput>> future = client().async().messages()
                 .create(params, RequestOptions.builder().timeout(timeout).build());

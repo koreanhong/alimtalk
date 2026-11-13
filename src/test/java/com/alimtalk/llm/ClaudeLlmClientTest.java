@@ -13,6 +13,39 @@ class ClaudeLlmClientTest {
             Duration.ofSeconds(60), Duration.ofSeconds(120), 2, 16000);
 
     @Test
+    void buildParamsKeepsTurnOrderAndRoles() {
+        ClaudeLlmClient client = new ClaudeLlmClient(PROPS, () -> {
+            throw new IllegalStateException("호출하지 않음");
+        });
+
+        var params = client.buildParams("시스템", java.util.List.of(
+                LlmTurn.user("A"), LlmTurn.assistant("B"), LlmTurn.user("C"), LlmTurn.system("D")));
+
+        var messages = params.rawParams().messages();
+        assertThat(messages).hasSize(4);
+        assertThat(messages.get(0).role().toString()).isEqualTo("user");
+        assertThat(messages.get(1).role().toString()).isEqualTo("assistant");
+        assertThat(messages.get(2).role().toString()).isEqualTo("user");
+        assertThat(messages.get(3).role().toString()).isEqualTo("system");
+        assertThat(messages.get(0).content().toString()).contains("A");
+        assertThat(messages.get(3).content().toString()).contains("D");
+        // 시스템 프롬프트 캐시 지정 유지
+        assertThat(params.rawParams().system().orElseThrow().toString()).contains("cacheControl=CacheControlEphemeral").contains("시스템");
+    }
+
+    @Test
+    void singleUserOverloadSendsOneUserTurn() {
+        ClaudeLlmClient client = new ClaudeLlmClient(PROPS, () -> {
+            throw new IllegalStateException("호출하지 않음");
+        });
+
+        var messages = client.buildParams("시스템", java.util.List.of(LlmTurn.user("요청"))).rawParams().messages();
+
+        assertThat(messages).hasSize(1);
+        assertThat(messages.get(0).role().toString()).isEqualTo("user");
+    }
+
+    @Test
     void credentialsMissingWhenNoKeyOrToken() {
         assertThat(ClaudeLlmClient.credentialsMissing(Map.of())).isTrue();
         assertThat(ClaudeLlmClient.credentialsMissing(Map.of("ANTHROPIC_API_KEY", "  "))).isTrue();

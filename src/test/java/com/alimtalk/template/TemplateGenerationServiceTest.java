@@ -284,8 +284,13 @@ class TemplateGenerationServiceTest {
             return this;
         }
 
+        final List<List<com.alimtalk.llm.LlmTurn>> sentTurns = new ArrayList<>();
+
         @Override
-        public LlmResponse generate(String system, String user, Duration timeout) throws LlmException {
+        public LlmResponse generate(String system, List<com.alimtalk.llm.LlmTurn> turns, Duration timeout) throws LlmException {
+            sentTurns.add(List.copyOf(turns));
+            String user = turns.stream().filter(t -> t.role() == com.alimtalk.llm.LlmTurn.Role.USER)
+                    .reduce((a, b) -> b).map(com.alimtalk.llm.LlmTurn::text).orElse("");
             userMessages.add(user);
             timeouts.add(timeout);
             clock.advance(delay);
