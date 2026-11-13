@@ -36,8 +36,7 @@ public class PromptBuilder {
     }
 
     public String user(String prompt, String channelName) {
-        String channelLine = channelName == null || channelName.isBlank() ? "" : "발신 채널: " + channelName + "\n";
-        return channelLine + "요청: " + prompt;
+        return channelLine(channelName) + "요청: " + prompt;
     }
 
     /** 질문이 연속 3번이면 대화 끝에 붙이는 운영 지시. */
@@ -60,10 +59,19 @@ public class PromptBuilder {
     }
 
     public String retry(String prompt, String channelName, TemplateDraft previous, List<String> errors) {
-        return user(prompt, channelName)
-                + "\n\n아래는 직전에 작성한 템플릿입니다.\n" + describe(previous)
+        return user(prompt, channelName) + "\n\n" + retryNote(previous, errors);
+    }
+
+    /** 규칙 위반으로 다시 작성을 요청할 때 덧붙이는 문장(직전 결과 + 위반 목록). */
+    public String retryNote(TemplateDraft previous, List<String> errors) {
+        return "아래는 직전에 작성한 템플릿입니다.\n" + describe(previous)
                 + "\n\n이 템플릿은 다음 규칙을 어겼습니다. 모두 고쳐서 다시 작성하세요.\n"
                 + errors.stream().map(e -> "- " + e).collect(Collectors.joining("\n"));
+    }
+
+    /** 채널 줄(채널이 있을 때만). */
+    public String channelLine(String channelName) {
+        return channelName == null || channelName.isBlank() ? "" : "발신 채널: " + channelName + "\n";
     }
 
     private static String buildSystem(String guide, RuleSet rules) {

@@ -35,6 +35,8 @@ public class TemplateController {
             case GenerationResult.Success s -> ResponseEntity.ok(new SuccessBody(s.draft(), s.warnings(), s.attempts()));
             case GenerationResult.Rejected r -> ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
                     .body(new ErrorBody(r.reason(), r.message(), null, null, null));
+            case GenerationResult.Asked a -> ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                    .body(new ErrorBody("UNCLEAR", a.question(), null, null, null));
             case GenerationResult.RuleViolation v -> ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
                     .body(new ErrorBody("RULE_VIOLATION", "규칙을 모두 맞추지 못했습니다.", v.draft(), v.errors(), v.warnings()));
         };

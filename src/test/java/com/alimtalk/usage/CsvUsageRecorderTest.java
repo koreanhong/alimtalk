@@ -20,7 +20,7 @@ class CsvUsageRecorderTest {
     private static UsageRecord record(String prompt) {
         return new UsageRecord(Instant.parse("2026-11-12T23:25:31Z"), "SUCCESS", 1, 4100,
                 new LlmUsage(41, 343, 5472, 0), 0.0081184, "claude-opus-5-5", "medium",
-                "002001", "BA", "NONE", prompt);
+                "002001", "BA", "NONE", prompt, "NEW", 3);
     }
 
     private static List<String> lines(Path file) throws Exception {
@@ -40,9 +40,9 @@ class CsvUsageRecorderTest {
         assertThat(bytes[0] & 0xFF).isEqualTo(0xEF); // UTF-8 BOM (엑셀 한글 깨짐 방지)
         List<String> lines = lines(file);
         assertThat(lines).hasSize(3);
-        assertThat(lines.get(0)).contains("시각", "결과", "추정비용(USD)", "요청문장");
+        assertThat(lines.get(0)).contains("시각", "결과", "추정비용(USD)", "요청문장").endsWith(",모드,대화턴수");
         assertThat(lines.get(1)).isEqualTo(
-                "2026-11-13 08:25:31,SUCCESS,1,4100,41,343,5472,0,0.008118,claude-opus-5-5,medium,002001,BA,NONE,주문 관련 메시지 세팅해줘");
+                "2026-11-13 08:25:31,SUCCESS,1,4100,41,343,5472,0,0.008118,claude-opus-5-5,medium,002001,BA,NONE,주문 관련 메시지 세팅해줘,NEW,3");
     }
 
     @Test
@@ -51,16 +51,16 @@ class CsvUsageRecorderTest {
         new CsvUsageRecorder(file, SEOUL).record(record("주문, \"취소\"\n안내"));
 
         String text = Files.readString(file, StandardCharsets.UTF_8);
-        assertThat(text).contains(",\"주문, \"\"취소\"\"\n안내\"");
+        assertThat(text).contains(",\"주문, \"\"취소\"\"\n안내\",NEW,3");
     }
 
     @Test
     void nullFieldsBecomeEmpty() throws Exception {
         Path file = dir.resolve("u.csv");
         new CsvUsageRecorder(file, SEOUL).record(new UsageRecord(Instant.parse("2026-11-12T23:25:31Z"), "AD_CONTENT", 1, 1900,
-                LlmUsage.ZERO, 0, "claude-opus-5-5", "medium", null, null, null, "할인 홍보"));
+                LlmUsage.ZERO, 0, "claude-opus-5-5", "medium", null, null, null, "할인 홍보", null, 1));
 
-        assertThat(lines(file).get(1)).isEqualTo("2026-11-13 08:25:31,AD_CONTENT,1,1900,0,0,0,0,0.000000,claude-opus-5-5,medium,,,,할인 홍보");
+        assertThat(lines(file).get(1)).isEqualTo("2026-11-13 08:25:31,AD_CONTENT,1,1900,0,0,0,0,0.000000,claude-opus-5-5,medium,,,,할인 홍보,,1");
     }
 
     @Test

@@ -23,7 +23,7 @@ public class CsvUsageRecorder implements UsageRecorder {
     private static final String BOM = "﻿";
     private static final String HEADER = String.join(",", "시각", "결과", "시도", "소요(ms)",
             "입력토큰", "출력토큰", "캐시읽기", "캐시저장", "추정비용(USD)", "모델", "effort",
-            "카테고리", "메시지유형", "강조유형", "요청문장");
+            "카테고리", "메시지유형", "강조유형", "요청문장", "모드", "대화턴수");
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final Path path;
@@ -67,7 +67,9 @@ public class CsvUsageRecorder implements UsageRecorder {
                 nz(r.category()),
                 nz(r.msgType()),
                 nz(r.emph()),
-                nz(r.prompt()));
+                nz(r.prompt()),
+                nz(r.mode()),
+                String.valueOf(r.turns()));
         return fields.stream().map(CsvUsageRecorder::escape).collect(Collectors.joining(","));
     }
 

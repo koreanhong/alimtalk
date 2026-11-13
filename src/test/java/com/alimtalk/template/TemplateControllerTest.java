@@ -83,6 +83,17 @@ class TemplateControllerTest {
     }
 
     @Test
+    void unclearReturns422WithQuestion() throws Exception {
+        when(service.generate(anyString(), anyString()))
+                .thenReturn(new GenerationResult.Rejected("UNCLEAR", "어떤 상황의 메시지인가요?"));
+
+        postPrompt("세팅해줘")
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.reason").value("UNCLEAR"))
+                .andExpect(jsonPath("$.message").value("어떤 상황의 메시지인가요?"));
+    }
+
+    @Test
     void blankPromptIs400() throws Exception {
         postPrompt("   ")
                 .andExpect(status().isBadRequest())
