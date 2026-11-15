@@ -33,6 +33,7 @@ LIVE_LLM_TEST=true ./gradlew test --tests '*ClaudeLlmClientLiveTest'
 - Claude 요청 1건(챗봇 대화 1턴 또는 한 번에 채우기 1회)마다 한 줄씩 기록된다(작성·질문·규칙 위반·거절·오류 모두). 엑셀에서 바로 열 수 있다.
 - 항목: 시각, 결과, 시도 횟수, 소요(ms), 입력·출력·캐시 읽기·캐시 저장 토큰(재생성 포함 합계), 추정비용(USD), 모델, effort, 카테고리, 메시지 유형, 강조 유형, 요청 문장(마지막 발화), 모드(NEW/POLISH), 대화턴수
 - 결과 값: `SUCCESS`(작성), `ASK`(질문), `RULE_VIOLATION`(재생성 후에도 위반), `AD_CONTENT`(광고 거절), `UNCLEAR`(한 번에 채우기의 되묻기), `ERROR_*`(오류)
+- 날짜별 합계: 같은 폴더의 `llm-usage-v2-summary.csv`(날짜별 1줄 + 맨 아래 `합계`). 요청 수, 결과별 건수(`UNCLEAR`·`ERROR_*`는 `기타`), 시도, 토큰 4종, 추정비용 합계. 기록할 때마다 원본 전체에서 다시 계산한다.
 - 대화형 이전 기록은 `logs/llm-usage.csv`(열이 적은 이전 형식)에 남아 있다.
 - 비용은 `application.yml`의 `alimtalk.usage-log.price` 단가(100만 토큰당 USD)로 계산한 **추정치**다. 실제 청구 금액은 Claude Console의 사용량·비용 화면에서 확인한다.
 - 파일은 git에 포함되지 않는다(`logs/`). 경로는 `alimtalk.usage-log.path`로 바꿀 수 있다.
