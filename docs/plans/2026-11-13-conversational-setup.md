@@ -203,3 +203,68 @@
 - [ ] **Step 1: 문서 갱신**
 - [ ] **Step 2: 사용자 승인(비용) 후, 사용자가 키를 넣은 8080 서버로 대화 시나리오 실제 호출 확인** — 시나리오(예): ① [배송 시작] → 질문·선택지 → 선택 → 작성, ② "회원가입 인증번호 보내는 거" → 바로 작성, ③ 예시 폼에서 "더 정중하게" → POLISH 결과 [적용], ④ "할인 행사 홍보" → 거절, ⑤ 질문 3회 유도 후 강제 작성. 결과·토큰·비용을 `logs/llm-usage-v2.csv`로 정리
 - [ ] **Step 3: 결과 보고, 커밋 승인 요청 후 커밋** (`docs: 대화형 세팅 실행 가이드·인수인계 갱신`)
+
+---
+
+## 추가: 자동 작성 범위 확장 (2026-11-15, 설계 12장)
+
+**Goal:** 메시지 유형 4종(BA·EX·AD·MI)·강조 유형 4종(NONE·TEXT·IMAGE·ITEM_LIST)을 챗봇이 자동 작성한다. 일반 버튼·이미지 파일은 계속 직접 설정.
+
+**Global Constraints (추가분)**
+- 기본은 BA/EX + NONE/TEXT. AD·MI·IMAGE·ITEM_LIST는 사용자가 말했을 때만 쓰고, 후속 선택지로 제안할 수 있다(생성 지침 5장).
+- 아이템리스트 점검은 문서로 확인된 규칙만(설계 12.4). 항목명·항목 내용·요약 글자 수는 점검하지 않는다.
+- `TemplateDraft`에 `item`을 추가하되, 기존 11개 인자 생성자는 보조 생성자로 남겨(`item` = null) 기존 코드·테스트를 건드리지 않는다.
+- 역할 분담은 기존과 같다: 서버(Task 7) 메인 세션, 화면(Task 8) test → frontend-developer → test, 마지막 code-reviewer. 커밋은 Task마다 승인 후.
+
+### Task 7: 서버 — 응답 형식·규칙·점검·프롬프트·가짜 LLM
+
+**Files:**
+- Modify: `llm/LlmOutput.java`, `template/TemplateDraft.java`, `rules/RuleSet.java`, `resources/rules/alimtalk-rules.json`, `rules/RuleValidator.java`, `llm/PromptBuilder.java`, `resources/rules/alimtalk-review-guide.md`(5장 유형 선택 규칙), `template/TemplateGenerationService.java`(범위 밖 처리 삭제), `llm/FakeLlmClient.java`
+- Test: `RuleValidatorTest`, `PromptBuilderTest`, `LlmOutputTest`, `TemplateGenerationServiceTest`, `FakeLlmClientTest`, `ChatControllerTest`
+
+**Interfaces (Produces):**
+```java
+// TemplateDraft: 마지막 인자로 item 추가 + 보조 생성자(item 없이)
+public record TemplateDraft(..., Map<String,String> samples, @Valid Item item) {
+    public TemplateDraft(/* 기존 11개 */) { this(/* ... */, null); }
+    public record Item(@Size(max=200) String header, @Size(max=200) String hlTitle, @Size(max=200) String hlDesc,
+                       @Size(max=10) List<@Valid Row> list, @Size(max=200) String sumName, @Size(max=200) String sumDesc) {}
+    public record Row(@Size(max=200) String name, @Size(max=200) String desc) {}
+}
+// LlmOutput: enum MsgType { BA, EX, AD, MI }, enum Emph { NONE, TEXT, IMAGE, ITEM_LIST }
+//   DraftOut 마지막에 ItemOut item(설명 포함, ITEM_LIST가 아니면 빈 값) → toDraft()가 TemplateDraft.Item으로 변환
+// RuleSet.ItemList에 String sumDescPattern 추가. 규칙 파일: msgTypes 4종, emphTypes 4종,
+//   itemList.sumDescPattern = "^[0-9,.\\s₩$€¥£원달러엔위안]+$"
+```
+- JSON 필드 이름은 화면 `state.item`과 같다: `header, hlTitle, hlDesc, list[{name, desc}], sumName, sumDesc`.
+
+- [ ] **Step 1: 실패 테스트** — `RuleValidatorTest`: `acceptsAllMessageAndEmphTypes`, `miRequiresExtra`, `itemListNeedsHeaderOrHighlight`, `itemListRowCount2to10`, `itemRowNeedsNameAndDesc`, `itemNameAndSumNameRejectVariables`, `summaryNeedsBothNameAndDesc`, `sumDescMustBeNumericAfterSubstitution`, `itemHeaderAndHighlightLengths`(16·30·19), `itemListVariablesNeedSamples`, `itemListCountsTowardTotalLength`, `imageTypeIgnoresTitleAndSub`. `LlmOutputTest`: `toDraftCopiesItem`. `PromptBuilderTest`: `formContextIncludesItemList`(ITEM_LIST 폼이면 헤더·항목·요약 줄), `systemListsAllTypesAndItemTargets`. `TemplateGenerationServiceTest`: `polishKeepsTypesFromClaude`(AD/ITEM_LIST 그대로 반환·점검), `itemListViolationTriggersRetry`; 기존 범위 밖 유형 유지 테스트는 새 동작에 맞게 교체. `FakeLlmClientTest`: `itemListRequest`("아이템" → ITEM_LIST·항목 2개·요약), `channelAddRequest`("채널" → AD), `imageRequest`("이미지" → IMAGE), `polishKeepsFormTypes`(MI·ITEM_LIST 폼 유지). `ChatControllerTest`: `formItemTooLargeIs400`(항목 11개).
+- [ ] **Step 2: `./gradlew test` → 새 테스트 FAIL 확인**
+- [ ] **Step 3: 구현** — 위 Interfaces. `RuleValidator`: `isEx = EX||MI`; ITEM_LIST 검사(설계 12.4, 오류 문구는 수치 포함 한 문장); 변수·합계 길이에 아이템리스트 칸 포함. `PromptBuilder.describe`: ITEM_LIST면 "- 아이템 헤더/하이라이트 제목/하이라이트 설명/항목 n: 이름 | 내용/요약: 이름 | 내용" 줄 추가, `isEmpty`에 item 반영, 시스템 프롬프트 6장에 아이템리스트 목표(헤더 11자, 하이라이트 21/13자 = 70%, 항목 2~10개)와 유형 4종. 생성 지침 5장: 12.2 규칙 + "IMAGE면 강조 제목·보조 문구 비움, 이미지는 사용자가 올림". 서비스: `keepFormTypes`·`checkedAsInScope`·`OUT_OF_SCOPE_*`·`EXTRA_MSG_TYPES` 삭제, `lastDraft = out.draft().toDraft()`. 가짜 LLM: Step 1 규칙(기존 "광고"·"위반"·"다듬" 규칙보다 뒤, 기본 주문완료보다 앞), 다듬기는 폼 유형·item 유지.
+- [ ] **Step 4: `./gradlew test` 전체 PASS(실제 호출 테스트 skip)**
+- [ ] **Step 5: 커밋 승인 후 커밋** (`feat: 자동 작성 범위를 메시지·강조 유형 4종으로 확장(서버)`)
+
+### Task 8: 화면 — 4종 유형 적용·아이템리스트·이미지 안내
+
+**Files:** Modify `static/index.html`, `src/test/ui/verify.html`
+
+**Interfaces (Consumes):** Task 7의 `draft.item`(`{header, hlTitle, hlDesc, list:[{name,desc}], sumName, sumDesc}`, ITEM_LIST가 아니면 빈 값), `draft.msgType` 4종, `draft.emph` 4종.
+
+화면 동작(설계 12.5):
+- `applyDraft`: `item` = ITEM_LIST면 초안 값(항목 2개 미만이면 빈 줄로 2개 채움), 아니면 `emptyItem()`. 버튼·이미지는 지금처럼 비움.
+- `applyPolish`: `keepMsgType`·`keepEmph` 삭제 → 유형도 반영. ITEM_LIST면 `item`도 반영, 아니면 기존 `item` 유지. 버튼·이미지(`imageData`, `itemImageData`, `thumbData`) 유지.
+- DRAFT 말풍선: `draft.emph === "IMAGE"`이고 `imageData`가 없으면 `.chat-image-note` "이미지는 폼에서 올려 주세요." 표시.
+- `formSnapshot`: `item` 포함(각 칸 200자, 항목 10개로 자름), 예시값 대상에 아이템리스트 칸(헤더·하이라이트·항목 내용·요약 내용) 추가.
+- `SCOPE_HTML`: 설계 12.5 문구.
+
+- [ ] **Step 1: 실패 점검 항목(test 에이전트)** — `itemListDraftFillsForm`("아이템리스트로 주문 안내" → 강조 유형 아이템리스트, 헤더·항목 2개·요약 채움, 미리보기 표시), `channelAddDraftAddsAcButton`("채널 추가 넣은 주문 안내" → 채널추가형, 미리보기에 채널 추가 버튼), `imageDraftShowsUploadNotice`, `polishKeepsImageAndButtons`(이미지 올린 이미지형 폼 + 버튼 → 다듬기 적용 후 유지), `polishAppliesItemList`, `chatFormSendsItem`(요청 본문에 form.item), `scopeTextUpdated`. 기존 범위 밖 유형 유지 항목은 새 동작에 맞게 수정.
+- [ ] **Step 2: 가짜 LLM 서버(8081) + `verify.sh` → 새 항목 FAIL 확인**
+- [ ] **Step 3: 구현(frontend-developer 에이전트)**
+- [ ] **Step 4: 서버 재시작 후 `verify.sh` 전체 PASS + 스크린샷 확인(test 에이전트)**
+- [ ] **Step 5: 커밋 승인 후 커밋** (`feat: 챗봇 자동 작성에 채널추가형·복합형·이미지형·아이템리스트형 반영(화면)`)
+
+### Task 9: 검토·문서·실제 Claude 확인
+- [ ] **Step 1: code-reviewer 전체 검토(Task 7~8) → 사용자 선택 항목 수정**
+- [ ] **Step 2: `docs/run-guide.md`** — 5장 13·14번 기대 결과 변경(채널추가형·이미지형으로 작성), 6장 5번 기대 결과 변경, 시나리오 추가: 8 "아이템리스트로 주문 완료 안내", 9 "채널 추가 넣어서 배송 안내", 10 이미지형 요청 → 이미지 안내. `docs/handoff.md` 갱신
+- [ ] **Step 3: 사용자 승인(비용) 후 실제 호출 확인(Task 6 Step 2와 함께)**
+- [ ] **Step 4: 커밋 승인 후 커밋**
