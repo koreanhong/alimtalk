@@ -23,10 +23,12 @@ public class RuleValidator {
 
     private final RuleSet rules;
     private final Pattern codePattern;
+    private final Pattern sumDescPattern;
 
     public RuleValidator(RuleSet rules) {
         this.rules = rules;
         this.codePattern = Pattern.compile(rules.codePattern());
+        this.sumDescPattern = Pattern.compile(rules.itemList().sumDescPattern());
     }
 
     public ValidationResult validate(TemplateDraft d) {
@@ -40,8 +42,12 @@ public class RuleValidator {
         String title = nz(d.title());
         String sub = nz(d.sub());
         Map<String, String> samples = d.samples() == null ? Map.of() : d.samples();
-        boolean isEx = "EX".equals(d.msgType());
+        boolean isEx = "EX".equals(d.msgType()) || "MI".equals(d.msgType());  // 복합형도 부가정보 칸이 있다
         boolean isText = "TEXT".equals(d.emph());
+        boolean isItem = "ITEM_LIST".equals(d.emph());
+        TemplateDraft.Item item = d.item();
+        List<TemplateDraft.Row> rows = item == null || item.list() == null ? List.of()
+                : item.list().stream().filter(Objects::nonNull).toList();
 
         if (!rules.categories().contains(nz(d.category()))) {
             errors.add("카테고리 코드가 올바르지 않습니다: " + nz(d.category()));
@@ -89,9 +95,20 @@ public class RuleValidator {
             }
         }
 
-        List<String> vars = Stream.concat(
-                        isText ? variablesIn(title).stream() : Stream.empty(),
-                        variablesIn(content).stream())
+        if (isItem) {
+            checkItemList(item, rows, samples, errors);
+        }
+
+        // 변수를 쓸 수 있는 칸(아이템리스트는 헤더·하이라이트·항목 내용·요약 내용)
+        String itemVarText = isItem && item != null
+                ? String.join("\n", nz(item.header()), nz(item.hlTitle()), nz(item.hlDesc()),
+                        rows.stream().map(r -> nz(r.desc())).collect(Collectors.joining("\n")), nz(item.sumDesc()))
+                : "";
+        List<String> vars = Stream.of(
+                        isText ? variablesIn(title).stream() : Stream.<String>empty(),
+                        variablesIn(content).stream(),
+                        variablesIn(itemVarText).stream())
+                .flatMap(x -> x)
                 .distinct()
                 .toList();
         if (vars.size() > lim.vars()) {
@@ -108,14 +125,19 @@ public class RuleValidator {
             errors.add("예시값이 없는 변수: " + missing.stream().map(v -> "#{" + v + "}").collect(Collectors.joining(", ")));
         }
 
-        String measured = (isText ? title + sub : "") + content + (isEx ? extra : "");
+        String itemText = isItem && item != null
+                ? nz(item.header()) + nz(item.hlTitle()) + nz(item.hlDesc())
+                        + rows.stream().map(r -> nz(r.name()) + nz(r.desc())).collect(Collectors.joining())
+                        + nz(item.sumName()) + nz(item.sumDesc())
+                : "";
+        String measured = (isText ? title + sub : "") + itemText + content + (isEx ? extra : "");
         int total = len(substitute(measured, samples));
         if (total > lim.content()) {
             errors.add("본문이 %,d자입니다 (강조·부가정보 포함, 예시값 치환 기준 최대 %,d자). %,d자 이상 줄여야 합니다."
                     .formatted(total, lim.content(), total - lim.content()));
         }
 
-        String allText = title + "\n" + sub + "\n" + content + "\n" + extra;
+        String allText = title + "\n" + sub + "\n" + content + "\n" + extra + "\n" + itemText;
         for (String phrase : rules.bannedPhrases()) {
             if (allText.contains(phrase)) {
                 errors.add("광고성 문구 '" + phrase + "'는 쓸 수 없습니다.");
@@ -131,6 +153,53 @@ public class RuleValidator {
         }
 
         return new ValidationResult(List.copyOf(errors), List.copyOf(warnings));
+    }
+
+    /** 아이템리스트형 점검(네이버 클라우드 SENS 문서로 확인된 규칙만, 설계 12.4). 글자 수는 썸네일 없는 기준. */
+    private void checkItemList(TemplateDraft.Item item, List<TemplateDraft.Row> rows, Map<String, String> samples,
+                               List<String> errors) {
+        RuleSet.ItemList lim = rules.itemList();
+        if (item == null) {
+            errors.add("아이템리스트형은 아이템리스트 내용(헤더·항목 등)을 입력해야 합니다.");
+            return;
+        }
+        String header = nz(item.header());
+        String hlTitle = nz(item.hlTitle());
+        String hlDesc = nz(item.hlDesc());
+        if (header.isBlank() && hlTitle.isBlank() && hlDesc.isBlank()) {
+            errors.add("아이템리스트는 헤더 또는 아이템 하이라이트 중 하나를 입력해야 합니다.");
+        }
+        if (len(header) > lim.header()) {
+            errors.add("아이템리스트 헤더는 %d자 이내여야 합니다. (현재 %d자)".formatted(lim.header(), len(header)));
+        }
+        if (len(hlTitle) > lim.hlTitle()) {
+            errors.add("아이템 하이라이트 제목은 %d자 이내여야 합니다. (현재 %d자)".formatted(lim.hlTitle(), len(hlTitle)));
+        }
+        if (len(hlDesc) > lim.hlDesc()) {
+            errors.add("아이템 하이라이트 설명은 %d자 이내여야 합니다. (현재 %d자)".formatted(lim.hlDesc(), len(hlDesc)));
+        }
+        if (rows.size() < lim.min() || rows.size() > lim.max()) {
+            errors.add("아이템리스트 항목은 %d~%d개여야 합니다. (현재 %d개)".formatted(lim.min(), lim.max(), rows.size()));
+        }
+        for (int i = 0; i < rows.size(); i++) {
+            if (nz(rows.get(i).name()).isBlank() || nz(rows.get(i).desc()).isBlank()) {
+                errors.add("아이템리스트 %d번 항목의 항목명과 내용을 모두 입력해야 합니다.".formatted(i + 1));
+            }
+        }
+        if (rows.stream().anyMatch(r -> !variablesIn(r.name()).isEmpty())) {
+            errors.add("아이템리스트 항목명에는 변수를 쓸 수 없습니다.");
+        }
+        String sumName = nz(item.sumName());
+        String sumDesc = nz(item.sumDesc());
+        if (sumName.isBlank() != sumDesc.isBlank()) {
+            errors.add("아이템 요약은 이름과 내용을 함께 입력해야 합니다.");
+        }
+        if (!variablesIn(sumName).isEmpty()) {
+            errors.add("아이템 요약 이름에는 변수를 쓸 수 없습니다.");
+        }
+        if (!sumDesc.isBlank() && !sumDescPattern.matcher(substitute(sumDesc, samples)).matches()) {
+            errors.add("아이템 요약 내용은 숫자·쉼표·마침표·통화기호·통화단위만 쓸 수 있습니다(예시값 치환 기준, 예: 129,000원).");
+        }
     }
 
     /** #{이름} 형식 변수를 등장 순서대로, 중복 없이 반환한다. */

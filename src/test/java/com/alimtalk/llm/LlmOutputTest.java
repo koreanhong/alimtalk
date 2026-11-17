@@ -26,8 +26,8 @@ class LlmOutputTest {
     void statusAndTypesAreEnumsWithAllowedValuesOnly() {
         assertThat(constants(typeOf(LlmOutput.class, "status"))).containsExactly("OK", "ASK", "AD_CONTENT");
         assertThat(constants(typeOf(LlmOutput.class, "mode"))).containsExactly("NEW", "POLISH");
-        assertThat(constants(typeOf(LlmOutput.DraftOut.class, "msgType"))).containsExactly("BA", "EX");
-        assertThat(constants(typeOf(LlmOutput.DraftOut.class, "emph"))).containsExactly("NONE", "TEXT");
+        assertThat(constants(typeOf(LlmOutput.DraftOut.class, "msgType"))).containsExactly("BA", "EX", "AD", "MI");
+        assertThat(constants(typeOf(LlmOutput.DraftOut.class, "emph"))).containsExactly("NONE", "TEXT", "IMAGE", "ITEM_LIST");
     }
 
     @Test
@@ -59,5 +59,27 @@ class LlmOutputTest {
         assertThat(d.msgType()).isEqualTo("EX");
         assertThat(d.emph()).isEqualTo("TEXT");
         assertThat(d.samples()).containsEntry("고객명", "홍길동");
+    }
+
+    @Test
+    void toDraftCopiesItem() {
+        LlmOutput.ItemOut item = new LlmOutput.ItemOut("주문 내역", "하이라이트", "설명",
+                List.of(new LlmOutput.RowOut("상품명", "#{상품명}"), new LlmOutput.RowOut("수량", "1개")), "결제금액", "#{결제금액}원");
+        LlmOutput.DraftOut out = new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01",
+                LlmOutput.MsgType.BA, LlmOutput.Emph.ITEM_LIST, "", "", "본문", "", false, List.of(), item);
+
+        TemplateDraft d = out.toDraft();
+
+        assertThat(d.emph()).isEqualTo("ITEM_LIST");
+        assertThat(d.item().header()).isEqualTo("주문 내역");
+        assertThat(d.item().list()).containsExactly(new TemplateDraft.Row("상품명", "#{상품명}"), new TemplateDraft.Row("수량", "1개"));
+        assertThat(d.item().sumDesc()).isEqualTo("#{결제금액}원");
+    }
+
+    @Test
+    void toDraftWithoutItemHasNullItem() {
+        LlmOutput.DraftOut out = new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01",
+                LlmOutput.MsgType.BA, LlmOutput.Emph.NONE, "", "", "본문", "", false, List.of());
+        assertThat(out.toDraft().item()).isNull();
     }
 }

@@ -112,15 +112,76 @@ class FakeLlmClientTest {
     }
 
     @Test
-    void polishUsesCurrentFormContentAndClearsExtra() {
+    void polishKeepsFormTypesAndExtra() {
         LlmOutput out = send(withForm(form("MI", "NONE"), "다듬어줘"));
 
         assertThat(out.mode()).isEqualTo(LlmOutput.Mode.POLISH);
         assertThat(out.draft().content()).isEqualTo("[다듬음] #{고객명}님, 배송이 시작되었습니다.\n- 택배사: #{택배사}");
-        assertThat(out.draft().extra()).isEmpty();
+        assertThat(out.draft().msgType()).isEqualTo(LlmOutput.MsgType.MI);
+        assertThat(out.draft().extra()).isEqualTo("문의: 고객센터 1588-0000");
         assertThat(out.draft().name()).isEqualTo("배송 시작 안내");
         assertThat(out.draft().toDraft().samples()).containsEntry("고객명", "홍길동").containsEntry("택배사", "CJ대한통운");
     }
+
+    @Test
+    void polishKeepsChannelAddAndImageTypes() {
+        LlmOutput out = send(withForm(form("AD", "IMAGE"), "다듬어줘"));
+
+        assertThat(out.draft().msgType()).isEqualTo(LlmOutput.MsgType.AD);
+        assertThat(out.draft().emph()).isEqualTo(LlmOutput.Emph.IMAGE);
+        assertThat(out.draft().extra()).isEmpty();
+        assertThat(VALIDATOR.validate(out.draft().toDraft()).errors()).isEmpty();
+    }
+
+    @Test
+    void polishKeepsItemList() {
+        com.alimtalk.template.TemplateDraft f = new com.alimtalk.template.TemplateDraft("002001", "주문 완료", "C", "BA",
+                "ITEM_LIST", "", "", "주문이 접수되었습니다.", "", false, java.util.Map.of("결제금액", "129,000"),
+                new com.alimtalk.template.TemplateDraft.Item("주문 내역", "", "",
+                        List.of(new com.alimtalk.template.TemplateDraft.Row("상품명", "키보드"),
+                                new com.alimtalk.template.TemplateDraft.Row("수량", "1개")),
+                        "결제금액", "#{결제금액}원"));
+
+        LlmOutput out = send(withForm(f, "다듬어줘"));
+
+        assertThat(out.draft().emph()).isEqualTo(LlmOutput.Emph.ITEM_LIST);
+        assertThat(out.draft().item().header()).isEqualTo("주문 내역");
+        assertThat(out.draft().item().list()).extracting(LlmOutput.RowOut::name).containsExactly("상품명", "수량");
+        assertThat(out.draft().item().sumDesc()).isEqualTo("#{결제금액}원");
+        assertThat(VALIDATOR.validate(out.draft().toDraft()).errors()).isEmpty();
+    }
+
+    @Test
+    void itemListRequest() {
+        LlmOutput out = send(first("아이템리스트로 주문 안내"));
+
+        assertThat(out.status()).isEqualTo(LlmOutput.Status.OK);
+        assertThat(out.mode()).isEqualTo(LlmOutput.Mode.NEW);
+        assertThat(out.draft().emph()).isEqualTo(LlmOutput.Emph.ITEM_LIST);
+        assertThat(out.draft().item().list()).hasSize(2);
+        assertThat(out.draft().item().sumName()).isNotBlank();
+        assertThat(VALIDATOR.validate(out.draft().toDraft()).errors()).isEmpty();
+    }
+
+    @Test
+    void channelAddRequest() {
+        LlmOutput out = send(first("채널 추가 넣은 주문 안내"));
+
+        assertThat(out.draft().msgType()).isEqualTo(LlmOutput.MsgType.AD);
+        assertThat(out.draft().extra()).isEmpty();
+        assertThat(VALIDATOR.validate(out.draft().toDraft()).errors()).isEmpty();
+    }
+
+    @Test
+    void imageRequest() {
+        LlmOutput out = send(first("이미지형으로 배송 안내"));
+
+        assertThat(out.draft().emph()).isEqualTo(LlmOutput.Emph.IMAGE);
+        assertThat(VALIDATOR.validate(out.draft().toDraft()).errors()).isEmpty();
+    }
+
+    private static final com.alimtalk.rules.RuleValidator VALIDATOR =
+            new com.alimtalk.rules.RuleValidator(new com.alimtalk.rules.RuleLoader().ruleSet());
 
     @Test
     void polishOfInScopeExtraFormPassesRules() {

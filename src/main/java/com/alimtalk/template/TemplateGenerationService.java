@@ -19,7 +19,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -53,9 +52,6 @@ public class TemplateGenerationService {
         this.usageProps = usageProps;
     }
 
-    private static final Set<String> OUT_OF_SCOPE_MSG_TYPES = Set.of("AD", "MI");
-    private static final Set<String> OUT_OF_SCOPE_EMPH = Set.of("IMAGE", "ITEM_LIST");
-    private static final Set<String> EXTRA_MSG_TYPES = Set.of("EX", "MI");
     private static final int FORCE_DRAFT_AFTER_QUESTIONS = 3;
     private static final int MAX_CHOICE_LENGTH = 20;
 
@@ -179,8 +175,8 @@ public class TemplateGenerationService {
             }
 
             lastOut = out;
-            lastDraft = keepFormTypes(out.draft().toDraft(), form, out);
-            lastResult = validator.validate(checkedAsInScope(lastDraft));
+            lastDraft = out.draft().toDraft();
+            lastResult = validator.validate(lastDraft);
             if (!lastResult.hasErrors()) {
                 return new GenerationResult.Success(lastDraft, lastResult.warnings(), attempts,
                         modeName(out), nz(out.message()).strip(), choicesOf(out));
@@ -200,43 +196,6 @@ public class TemplateGenerationService {
             }
         }
         return turns;
-    }
-
-    /**
-     * 다듬기에서 폼의 유형이 자동 세팅 범위 밖(채널추가형·복합형, 이미지형·아이템리스트형)이면 텍스트만 다듬은 것으로 보고
-     * 폼의 유형을 그대로 두고, 화면에 보이지 않는 칸·Claude가 비운 칸은 폼 값을 유지한 초안을 만든다(설계 5.3).
-     * 규칙 점검·재생성·반환 모두 이 초안을 쓴다. 범위 안 유형이면 Claude 초안 그대로.
-     */
-    private static TemplateDraft keepFormTypes(TemplateDraft draft, TemplateDraft form, LlmOutput out) {
-        if (form == null || out == null || out.mode() != LlmOutput.Mode.POLISH
-                || !(OUT_OF_SCOPE_MSG_TYPES.contains(nz(form.msgType())) || OUT_OF_SCOPE_EMPH.contains(nz(form.emph())))) {
-            return draft;
-        }
-        String msgType = blankOr(form.msgType(), draft.msgType());
-        String emph = blankOr(form.emph(), draft.emph());
-        // 부가정보 칸이 있는 유형은 Claude가 비웠을 때만 폼 값, 칸이 없는 유형은 항상 폼 값(보이지 않는 칸에 넣지 않는다)
-        String extra = EXTRA_MSG_TYPES.contains(msgType) ? blankOr(draft.extra(), form.extra()) : form.extra();
-        boolean textEmph = "TEXT".equals(emph);
-        String title = textEmph ? blankOr(draft.title(), form.title()) : form.title();
-        String sub = textEmph ? blankOr(draft.sub(), form.sub()) : form.sub();
-        return new TemplateDraft(draft.category(), draft.name(), draft.code(), msgType, emph, title, sub,
-                draft.content(), extra, draft.security(), draft.samples());
-    }
-
-    /** 점검기는 범위 안 유형만 알므로, 범위 밖 유형은 같은 칸 구성의 범위 안 유형으로 바꿔 점검한다(MI→EX, AD→BA, IMAGE·ITEM_LIST→NONE). */
-    private static TemplateDraft checkedAsInScope(TemplateDraft d) {
-        String msgType = switch (nz(d.msgType())) {
-            case "MI" -> "EX";
-            case "AD" -> "BA";
-            default -> d.msgType();
-        };
-        String emph = OUT_OF_SCOPE_EMPH.contains(nz(d.emph())) ? "NONE" : d.emph();
-        return new TemplateDraft(d.category(), d.name(), d.code(), msgType, emph, d.title(), d.sub(),
-                d.content(), d.extra(), d.security(), d.samples());
-    }
-
-    private static String blankOr(String value, String fallback) {
-        return value == null || value.isBlank() ? fallback : value;
     }
 
     private static String modeName(LlmOutput out) {

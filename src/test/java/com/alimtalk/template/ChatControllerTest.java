@@ -268,4 +268,58 @@ class ChatControllerTest {
         post(body(msg("user", "배송 안내"), "@mystore", FORM))
                 .andExpect(status().isGatewayTimeout()).andExpect(jsonPath("$.reason").value("TIMEOUT"));
     }
+
+    // ---------- 아이템리스트(설계 12.3) ----------
+
+    private static String itemForm(String item) {
+        return "{\"category\":\"002001\",\"name\":\"주문\",\"code\":\"C\",\"msgType\":\"BA\",\"emph\":\"ITEM_LIST\","
+                + "\"content\":\"본문\",\"samples\":{},\"item\":" + item + "}";
+    }
+
+    private static String rows(int count, int len) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < count; i++) {
+            if (i > 0) sb.append(',');
+            sb.append("{\"name\":\"항목\",\"desc\":\"").append("가".repeat(len)).append("\"}");
+        }
+        return sb.append(']').toString();
+    }
+
+    @Test
+    void formItemIsPassedToService() throws Exception {
+        when(service.chat(anyList(), any(), anyString())).thenReturn(new GenerationResult.Asked("q", List.of()));
+        String item = "{\"header\":\"주문 내역\",\"hlTitle\":\"\",\"hlDesc\":\"\",\"list\":" + rows(2, 3)
+                + ",\"sumName\":\"합계\",\"sumDesc\":\"1,000원\"}";
+
+        post(body(msg("user", "다듬어줘"), "@mystore", itemForm(item))).andExpect(status().isOk());
+
+        org.mockito.ArgumentCaptor<TemplateDraft> form = org.mockito.ArgumentCaptor.forClass(TemplateDraft.class);
+        verify(service).chat(anyList(), form.capture(), anyString());
+        org.assertj.core.api.Assertions.assertThat(form.getValue().item().header()).isEqualTo("주문 내역");
+        org.assertj.core.api.Assertions.assertThat(form.getValue().item().list()).hasSize(2);
+    }
+
+    @Test
+    void formItemTooManyRowsIs400() throws Exception {
+        String item = "{\"header\":\"h\",\"list\":" + rows(11, 1) + "}";
+        expect400(body(msg("user", "다듬어줘"), "@mystore", itemForm(item)), "아이템리스트");
+    }
+
+    @Test
+    void formItemFieldOver200Is400() throws Exception {
+        expect400(body(msg("user", "다듬어줘"), "@mystore", itemForm("{\"header\":\"" + "가".repeat(201) + "\"}")), "아이템리스트");
+        expect400(body(msg("user", "다듬어줘"), "@mystore", itemForm("{\"list\":" + rows(2, 201) + "}")), "아이템리스트");
+    }
+
+    @Test
+    void draftResponseIncludesItem() throws Exception {
+        TemplateDraft d = new TemplateDraft("002001", "주문 완료", "C", "BA", "ITEM_LIST", "", "", "본문", "", false, Map.of(),
+                new TemplateDraft.Item("주문 내역", "", "", List.of(new TemplateDraft.Row("상품명", "키보드")), "", ""));
+        when(service.chat(anyList(), any(), anyString())).thenReturn(
+                new GenerationResult.Success(d, List.of(), 1, "NEW", "작성했습니다.", List.of()));
+
+        post(body(msg("user", "아이템리스트로 주문 안내"), "@mystore", null)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.draft.item.header").value("주문 내역"))
+                .andExpect(jsonPath("$.draft.item.list[0].name").value("상품명"));
+    }
 }

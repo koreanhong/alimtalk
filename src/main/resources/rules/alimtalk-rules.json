@@ -18,8 +18,8 @@
     "vars": 30
   },
   "categories": ["002001", "002002", "003001", "004001", "006001", "006003", "999999"],
-  "msgTypes": ["BA", "EX"],
-  "emphTypes": ["NONE", "TEXT"],
+  "msgTypes": ["BA", "EX", "AD", "MI"],
+  "emphTypes": ["NONE", "TEXT", "IMAGE", "ITEM_LIST"],
   "bannedPhrases": ["지금 구매", "앱 설치", "특가", "(광고)"],
   "cautionWords": ["할인", "이벤트", "쿠폰", "혜택", "광고"],
   "codePattern": "^[A-Za-z0-9_]{1,30}$",
@@ -35,6 +35,7 @@
     "hlDesc": 19,
     "hlDescThumb": 13,
     "min": 2,
-    "max": 10
+    "max": 10,
+    "sumDescPattern": "^[0-9,.\\s₩$€¥£원달러엔위안]+$"
   }
 }

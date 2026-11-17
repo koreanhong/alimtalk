@@ -109,4 +109,45 @@ class PromptBuilderTest {
         assertThat(retry).contains("#{고객명}님, 이전 본문입니다.");
         assertThat(retry).contains(errors.get(0)).contains(errors.get(1));
     }
+
+    // ---------- 유형 4종·아이템리스트 (설계 12장) ----------
+
+    private static TemplateDraft itemForm(String emph) {
+        return new TemplateDraft("002001", "주문 완료", "C", "MI", emph, "", "", "주문이 접수되었습니다.", "문의", false,
+                Map.of("결제금액", "129,000"),
+                new TemplateDraft.Item("주문 내역", "주문 상품", "1건",
+                        List.of(new TemplateDraft.Row("상품명", "키보드"), new TemplateDraft.Row("수량", "1개")),
+                        "결제금액", "#{결제금액}원"));
+    }
+
+    @Test
+    void formContextIncludesItemListBeforeContent() {
+        String ctx = builder.formContext(itemForm("ITEM_LIST"));
+
+        assertThat(ctx).contains("- 아이템 헤더: 주문 내역\n", "- 아이템 하이라이트 제목: 주문 상품\n",
+                "- 아이템 하이라이트 설명: 1건\n", "- 아이템 항목 1: 상품명 | 키보드\n", "- 아이템 항목 2: 수량 | 1개\n",
+                "- 아이템 요약: 결제금액 | #{결제금액}원\n");
+        assertThat(ctx.indexOf("- 아이템 헤더")).isLessThan(ctx.indexOf("- 본문:"));
+    }
+
+    @Test
+    void formContextOmitsItemListForOtherEmph() {
+        assertThat(builder.formContext(itemForm("NONE"))).doesNotContain("아이템");
+    }
+
+    @Test
+    void formWithOnlyItemListIsNotEmpty() {
+        TemplateDraft onlyItem = new TemplateDraft("", "", "", "BA", "ITEM_LIST", "", "", "", "", false, Map.of(),
+                new TemplateDraft.Item("주문 내역", "", "", List.of(), "", ""));
+        assertThat(builder.formContext(onlyItem)).isNotEqualTo("현재 폼: 비어 있음");
+    }
+
+    @Test
+    void systemListsAllTypesAndItemTargets() {
+        String system = builder.system();
+
+        assertThat(system).contains("BA, EX, AD, MI").contains("NONE, TEXT, IMAGE, ITEM_LIST");
+        assertThat(system).contains("아이템리스트").contains("헤더 11자").contains("2~10개");
+        assertThat(system).contains("채널추가형").contains("요청했을 때만");
+    }
 }

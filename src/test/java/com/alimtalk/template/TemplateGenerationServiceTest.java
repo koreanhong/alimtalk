@@ -188,17 +188,17 @@ class TemplateGenerationServiceTest {
     }
 
     @Test
-    void polishKeepsOutOfScopeTypesFromForm() throws Exception {
+    void polishUsesTypesFromClaude() throws Exception {
         TemplateDraft form = new TemplateDraft("003001", "배송 시작 안내", "SHIP_START_01", "AD", "ITEM_LIST", "", "",
                 "고객님 배송 시작했어요 #{고객명}", "", false, java.util.Map.of("고객명", "홍길동"));
-        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.BA, LlmOutput.Emph.NONE));
+        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.AD, LlmOutput.Emph.IMAGE));
 
         GenerationResult r = service.chat(List.of(u("더 정중하게")), form, "아디다스");
 
         GenerationResult.Success s = (GenerationResult.Success) r;
         assertThat(s.mode()).isEqualTo("POLISH");
         assertThat(s.draft().msgType()).isEqualTo("AD");
-        assertThat(s.draft().emph()).isEqualTo("ITEM_LIST");
+        assertThat(s.draft().emph()).isEqualTo("IMAGE");
         assertThat(s.draft().content()).isEqualTo("#{고객명}님, 배송이 시작되었습니다.");
     }
 
@@ -213,7 +213,7 @@ class TemplateGenerationServiceTest {
         assertThat(s.draft().msgType()).isEqualTo("BA");
     }
 
-    // ---------- 범위 밖 유형 폼 다듬기 ----------
+    // ---------- 유형 4종·아이템리스트 (설계 12장) ----------
 
     private static TemplateDraft formOf(String msgType, String emph, String title, String sub, String extra) {
         return new TemplateDraft("003001", "배송 시작 안내", "SHIP_START_01", msgType, emph, title, sub,
@@ -227,87 +227,53 @@ class TemplateGenerationServiceTest {
                         List.of(new LlmOutput.Sample("고객명", "홍길동"))));
     }
 
-    @Test
-    void polishCompositeFormKeepsExtraWhenClaudeClearsIt() throws Exception {
-        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.BA, LlmOutput.Emph.NONE, "", "", ""));
+    private static LlmOutput itemListOut(LlmOutput.ItemOut item) {
+        return new LlmOutput(LlmOutput.Status.OK, LlmOutput.Mode.NEW, "작성했습니다.", List.of(),
+                new LlmOutput.DraftOut("002001", "주문 완료 안내", "ORDER_COMPLETE_01", LlmOutput.MsgType.BA,
+                        LlmOutput.Emph.ITEM_LIST, "", "", "주문이 접수되었습니다.", "", false,
+                        List.of(new LlmOutput.Sample("결제금액", "129,000")), item));
+    }
 
-        GenerationResult.Success s = (GenerationResult.Success) service.chat(List.of(u("더 정중하게")),
-                formOf("MI", "NONE", "", "", "문의: 고객센터"), "아디다스");
-
-        assertThat(s.draft().msgType()).isEqualTo("MI");
-        assertThat(s.draft().extra()).isEqualTo("문의: 고객센터");
-        assertThat(s.attempts()).isEqualTo(1);
+    private static LlmOutput.ItemOut itemOut(int rows) {
+        List<LlmOutput.RowOut> list = java.util.stream.IntStream.range(0, rows)
+                .mapToObj(i -> new LlmOutput.RowOut("항목" + i, "값")).toList();
+        return new LlmOutput.ItemOut("주문 내역", "", "", list, "결제금액", "#{결제금액}원");
     }
 
     @Test
-    void polishCompositeFormUsesClaudeExtraWhenGiven() throws Exception {
-        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.EX, LlmOutput.Emph.NONE, "", "", "문의: 1588-0000"));
+    void polishCompositeFormWithoutExtraIsViolationAndRetried() throws Exception {
+        LlmOutput noExtra = polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.MI, LlmOutput.Emph.NONE, "", "", "");
+        llm.then(noExtra).then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.MI, LlmOutput.Emph.NONE,
+                "", "", "문의: 고객센터"));
 
-        GenerationResult.Success s = (GenerationResult.Success) service.chat(List.of(u("더 정중하게")),
-                formOf("MI", "NONE", "", "", "문의: 고객센터"), "아디다스");
-
-        assertThat(s.draft().extra()).isEqualTo("문의: 1588-0000");
-    }
-
-    @Test
-    void polishCompositeFormIsCheckedAsExtraInfoType() throws Exception {
-        LlmOutput noExtra = polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.BA, LlmOutput.Emph.NONE, "", "", "");
-        llm.then(noExtra).then(noExtra).then(noExtra);
-
-        GenerationResult r = service.chat(List.of(u("더 정중하게")), formOf("MI", "NONE", "", "", ""), "아디다스");
-
-        GenerationResult.RuleViolation v = (GenerationResult.RuleViolation) r;
-        assertThat(v.draft().msgType()).isEqualTo("MI");
-        assertThat(v.errors()).anyMatch(e -> e.contains("부가정보"));
-        assertThat(v.errors()).noneMatch(e -> e.contains("메시지 유형"));
-    }
-
-    @Test
-    void polishChannelAddFormIgnoresClaudeExtraAndChecksAsBasic() throws Exception {
-        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.EX, LlmOutput.Emph.NONE, "", "", ""));
-
-        GenerationResult r = service.chat(List.of(u("더 정중하게")), formOf("AD", "NONE", "", "", ""), "아디다스");
-
-        GenerationResult.Success s = (GenerationResult.Success) r;
-        assertThat(s.draft().msgType()).isEqualTo("AD");
-        assertThat(s.draft().extra()).isEmpty();
-        assertThat(s.attempts()).isEqualTo(1);
-    }
-
-    @Test
-    void polishChannelAddFormKeepsFormExtraOverClaudeExtra() throws Exception {
-        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.EX, LlmOutput.Emph.NONE, "", "", "새 부가정보"));
-
-        GenerationResult.Success s = (GenerationResult.Success) service.chat(List.of(u("더 정중하게")),
-                formOf("AD", "NONE", "", "", "숨은 값"), "아디다스");
-
-        assertThat(s.draft().extra()).isEqualTo("숨은 값");
-    }
-
-    @Test
-    void polishImageFormKeepsTitleAndSubFromForm() throws Exception {
-        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.BA, LlmOutput.Emph.TEXT, "새 제목", "새 보조", ""));
-
-        GenerationResult.Success s = (GenerationResult.Success) service.chat(List.of(u("더 정중하게")),
-                formOf("BA", "IMAGE", "폼 제목", "폼 보조", ""), "아디다스");
-
-        assertThat(s.draft().emph()).isEqualTo("IMAGE");
-        assertThat(s.draft().title()).isEqualTo("폼 제목");
-        assertThat(s.draft().sub()).isEqualTo("폼 보조");
-    }
-
-    @Test
-    void polishOutOfScopeAlignmentAppliesOnRetryToo() throws Exception {
-        llm.then(polished("#{고객명}님, " + "가".repeat(1100), LlmOutput.MsgType.EX, LlmOutput.Emph.NONE, "", "", ""))
-                .then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.EX, LlmOutput.Emph.NONE, "", "", ""));
-
-        GenerationResult r = service.chat(List.of(u("더 정중하게")), formOf("AD", "ITEM_LIST", "", "", ""), "아디다스");
+        GenerationResult r = service.chat(List.of(u("더 정중하게")), formOf("MI", "NONE", "", "", "문의: 고객센터"), "아디다스");
 
         GenerationResult.Success s = (GenerationResult.Success) r;
         assertThat(s.attempts()).isEqualTo(2);
-        assertThat(s.draft().msgType()).isEqualTo("AD");
+        assertThat(s.draft().msgType()).isEqualTo("MI");
+        assertThat(s.draft().extra()).isEqualTo("문의: 고객센터");
+        assertThat(llm.userMessages.get(1)).contains("부가정보");
+    }
+
+    @Test
+    void itemListDraftIsReturnedWithItem() throws Exception {
+        llm.then(itemListOut(itemOut(2)));
+
+        GenerationResult.Success s = (GenerationResult.Success) service.chat(List.of(u("아이템리스트로 주문 안내")), null, "아디다스");
+
         assertThat(s.draft().emph()).isEqualTo("ITEM_LIST");
-        assertThat(llm.userMessages.get(1)).contains("최대 1,000자").doesNotContain("부가정보는");
+        assertThat(s.draft().item().list()).hasSize(2);
+        assertThat(s.draft().item().sumDesc()).isEqualTo("#{결제금액}원");
+    }
+
+    @Test
+    void itemListViolationTriggersRetry() throws Exception {
+        llm.then(itemListOut(itemOut(1))).then(itemListOut(itemOut(3)));
+
+        GenerationResult.Success s = (GenerationResult.Success) service.chat(List.of(u("아이템리스트로 주문 안내")), null, "아디다스");
+
+        assertThat(s.attempts()).isEqualTo(2);
+        assertThat(llm.userMessages.get(1)).contains("2~10개").contains("- 아이템 항목 1: 항목0 | 값");
     }
 
     @Test

@@ -22,6 +22,10 @@ public record RuleSet(
     /** 버튼 제한 (수작업 전용, 자동 작성 대상 아님). */
     public record Buttons(int nameMax, int max) {}
 
-    /** 아이템리스트형 강조 제한 (수작업 전용). hl* = 아이템 하이라이트, *Thumb = 썸네일이 있을 때. */
-    public record ItemList(int header, int hlTitle, int hlTitleThumb, int hlDesc, int hlDescThumb, int min, int max) {}
+    /**
+     * 아이템리스트형 강조 제한. hl* = 아이템 하이라이트, *Thumb = 썸네일이 있을 때, min·max = 항목 개수.
+     * sumDescPattern = 요약 내용(예시값 치환 후)이 맞아야 하는 정규식(숫자·쉼표·마침표·통화기호·통화단위).
+     */
+    public record ItemList(int header, int hlTitle, int hlTitleThumb, int hlDesc, int hlDescThumb, int min, int max,
+                           String sumDescPattern) {}
 }

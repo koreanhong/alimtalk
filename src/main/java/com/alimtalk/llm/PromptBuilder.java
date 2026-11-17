@@ -53,7 +53,15 @@ public class PromptBuilder {
     }
 
     private static boolean isEmpty(TemplateDraft d) {
-        return blank(d.name()) && blank(d.content()) && blank(d.title()) && blank(d.sub()) && blank(d.extra());
+        return blank(d.name()) && blank(d.content()) && blank(d.title()) && blank(d.sub()) && blank(d.extra())
+                && !hasItem(d);
+    }
+
+    private static boolean hasItem(TemplateDraft d) {
+        TemplateDraft.Item it = d.item();
+        return "ITEM_LIST".equals(d.emph()) && it != null
+                && !(blank(it.header()) && blank(it.hlTitle()) && blank(it.hlDesc()) && blank(it.sumName())
+                        && blank(it.sumDesc()) && (it.list() == null || it.list().isEmpty()));
     }
 
     private static boolean blank(String s) {
@@ -78,6 +86,7 @@ public class PromptBuilder {
 
     private static String buildSystem(String guide, RuleSet rules) {
         RuleSet.Limits lim = rules.limits();
+        RuleSet.ItemList items = rules.itemList();
         String categories = rules.categories().stream()
                 .map(c -> "- " + c + ": " + CATEGORY_NAMES.getOrDefault(c, c))
                 .collect(Collectors.joining("\n"));
@@ -90,6 +99,9 @@ public class PromptBuilder {
                 + "- 템플릿 코드: 정규식 " + rules.codePattern() + "\n"
                 + "- 변수: " + target(lim.vars()) + "개 이하\n"
                 + "- 메시지 유형: " + String.join(", ", rules.msgTypes()) + " / 강조 유형: " + String.join(", ", rules.emphTypes()) + "\n"
+                + "- 아이템리스트(ITEM_LIST일 때만): 헤더 " + target(items.header()) + "자, 하이라이트 제목 " + target(items.hlTitle())
+                + "자·설명 " + target(items.hlDesc()) + "자 이내, 항목 " + items.min() + "~" + items.max()
+                + "개(항목명은 짧게, 변수 금지), 요약은 이름 + 숫자·통화 형식 내용(예: #{결제금액}원)\n"
                 + "- 쓰지 않는 표현: " + String.join(", ", rules.bannedPhrases()) + "\n"
                 + "\n## 7. 카테고리 코드 (이 중 하나만 쓴다)\n" + categories + "\n";
     }
@@ -110,6 +122,19 @@ public class PromptBuilder {
         if ("TEXT".equals(d.emph())) {
             sb.append("- 강조 제목: ").append(nz(d.title())).append('\n')
                     .append("- 보조 문구: ").append(nz(d.sub())).append('\n');
+        }
+        if ("ITEM_LIST".equals(d.emph()) && d.item() != null) {  // 본문(여러 줄 값) 앞에 둔다
+            TemplateDraft.Item it = d.item();
+            sb.append("- 아이템 헤더: ").append(nz(it.header())).append('\n')
+                    .append("- 아이템 하이라이트 제목: ").append(nz(it.hlTitle())).append('\n')
+                    .append("- 아이템 하이라이트 설명: ").append(nz(it.hlDesc())).append('\n');
+            List<TemplateDraft.Row> rows = it.list() == null ? List.of() : it.list();
+            for (int i = 0; i < rows.size(); i++) {
+                TemplateDraft.Row r = rows.get(i);
+                sb.append("- 아이템 항목 ").append(i + 1).append(": ")
+                        .append(r == null ? "" : nz(r.name())).append(" | ").append(r == null ? "" : nz(r.desc())).append('\n');
+            }
+            sb.append("- 아이템 요약: ").append(nz(it.sumName())).append(" | ").append(nz(it.sumDesc())).append('\n');
         }
         sb.append("- 본문:\n").append(nz(d.content())).append('\n');
         if ("EX".equals(d.msgType()) || "MI".equals(d.msgType())) {

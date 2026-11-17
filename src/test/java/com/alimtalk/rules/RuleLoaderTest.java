@@ -15,7 +15,9 @@ class RuleLoaderTest {
 
         assertThat(rules.limits().content()).isEqualTo(1000);
         assertThat(rules.limits().vars()).isEqualTo(30);
-        assertThat(rules.msgTypes()).isEqualTo(List.of("BA", "EX"));
+        assertThat(rules.msgTypes()).isEqualTo(List.of("BA", "EX", "AD", "MI"));
+        assertThat(rules.emphTypes()).isEqualTo(List.of("NONE", "TEXT", "IMAGE", "ITEM_LIST"));
+        assertThat(rules.itemList().sumDescPattern()).isNotBlank();
         assertThat(rules.categories()).hasSize(7);
     }
 
