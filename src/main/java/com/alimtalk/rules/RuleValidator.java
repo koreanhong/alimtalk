@@ -133,7 +133,7 @@ public class RuleValidator {
         String measured = (isText ? title + sub : "") + itemText + content + (isEx ? extra : "");
         int total = len(substitute(measured, samples));
         if (total > lim.content()) {
-            errors.add("본문이 %,d자입니다 (강조·부가정보 포함, 예시값 치환 기준 최대 %,d자). %,d자 이상 줄여야 합니다."
+            errors.add("본문이 %,d자입니다 (강조·아이템리스트·부가정보 포함, 예시값 치환 기준 최대 %,d자). %,d자 이상 줄여야 합니다."
                     .formatted(total, lim.content(), total - lim.content()));
         }
 

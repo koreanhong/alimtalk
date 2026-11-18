@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -178,12 +179,35 @@ public class TemplateGenerationService {
             lastDraft = out.draft().toDraft();
             lastResult = validator.validate(lastDraft);
             if (!lastResult.hasErrors()) {
-                return new GenerationResult.Success(lastDraft, lastResult.warnings(), attempts,
+                return new GenerationResult.Success(lastDraft, withTypeChange(lastResult.warnings(), form, out, lastDraft), attempts,
                         modeName(out), nz(out.message()).strip(), choicesOf(out));
             }
         }
         return new GenerationResult.RuleViolation(lastDraft, lastResult.errors(),
-                lastResult.warnings(), attempts, modeName(lastOut), nz(lastOut.message()).strip(), choicesOf(lastOut));
+                withTypeChange(lastResult.warnings(), form, lastOut, lastDraft), attempts, modeName(lastOut), nz(lastOut.message()).strip(), choicesOf(lastOut));
+    }
+
+    private static final Map<String, String> TYPE_NAMES = Map.of(
+            "BA", "기본형", "EX", "부가정보형", "AD", "채널추가형", "MI", "복합형",
+            "NONE", "선택 안 함", "TEXT", "강조 표기형", "IMAGE", "이미지형", "ITEM_LIST", "아이템리스트형");
+
+    /** 다듬기 결과의 유형이 현재 폼과 다르면 경고를 붙인다(막지는 않는다, 설계 12.2). */
+    private static List<String> withTypeChange(List<String> warnings, TemplateDraft form, LlmOutput out, TemplateDraft draft) {
+        if (form == null || out == null || out.mode() != LlmOutput.Mode.POLISH || draft == null) {
+            return warnings;
+        }
+        List<String> all = new ArrayList<>(warnings);
+        typeChange("메시지 유형", form.msgType(), draft.msgType(), all);
+        typeChange("강조 유형", form.emph(), draft.emph(), all);
+        return List.copyOf(all);
+    }
+
+    private static void typeChange(String label, String before, String after, List<String> out) {
+        if (before == null || before.isBlank() || after == null || before.equals(after)) {
+            return;
+        }
+        out.add("%s이 %s에서 %s(으)로 바뀌었습니다. 의도한 변경인지 확인해 주세요."
+                .formatted(label, TYPE_NAMES.getOrDefault(before, before), TYPE_NAMES.getOrDefault(after, after)));
     }
 
     /** 재작성 요청은 마지막 user 턴에 덧붙인다(user 턴이 연달아 오지 않게, 강제 작성 지시는 맨 끝 유지). */

@@ -45,10 +45,18 @@ public class FakeLlmClient implements LlmClient {
         return new LlmResponse(answer(request(last), users.size(), form), LlmUsage.ZERO);
     }
 
-    /** 첫 발화에는 채널·현재 폼 문맥이 앞에 붙으므로 마지막 "요청: " 뒤만 본다. */
+    /** 재생성 요청 때 마지막 user 턴 뒤에 붙는 문장(PromptBuilder.retryNote)의 시작. */
+    private static final String RETRY_NOTE = "\n\n아래는 직전에 작성한 템플릿입니다.";
+
+    /**
+     * 첫 발화에는 채널·현재 폼 문맥이 앞에 붙으므로 마지막 "요청: " 뒤만 본다.
+     * 재생성 요청 문장(직전 초안·위반 목록)은 떼어 내 그 안의 단어("아이템" 등)에 반응하지 않게 한다.
+     */
     private static String request(String text) {
-        int i = text.lastIndexOf("요청: ");
-        return i < 0 ? text : text.substring(i + "요청: ".length());
+        int note = text.indexOf(RETRY_NOTE);
+        String own = note < 0 ? text : text.substring(0, note);
+        int i = own.lastIndexOf("요청: ");
+        return i < 0 ? own : own.substring(i + "요청: ".length());
     }
 
     private LlmOutput answer(String request, int userTurns, String formTurn) {

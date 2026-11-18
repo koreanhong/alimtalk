@@ -745,6 +745,110 @@ f.addEventListener("load", async () => {
     w.confirm = () => true;
   });
 
+  /* ---------- 11-9) 다듬기 결과 미리보기: 유형 변경 표시·아이템리스트·채널 추가 문구 (응답 바꿔치기로 실제 Claude 응답 상황 재현) ---------- */
+  /* 다음 /chat 응답의 body를 고쳐서 돌려준다(한 번만) */
+  const rewriteNext = (fn) => {
+    fetchHook = async (url, opts) => {
+      fetchHook = null;
+      const res = await realFetch(url, opts), body = await res.json();
+      fn(body);
+      return jsonRes(res.status, body);
+    };
+  };
+  const TYPE_WARN = "메시지 유형이 복합형에서 기본형(으)로 바뀌었습니다. 의도한 변경인지 확인해 주세요.";
+  async function prepareMixedForm(){
+    resetForm();
+    await newChat();
+    d.querySelector("input[name=msgType][value=MI]").click();
+    setVal("extra", "복합형 부가정보 원래 값");
+    w.confirm = () => true;
+  }
+
+  await block(["polishBubbleShowsTypeChange"], async () => {
+    await prepareMixedForm();
+    rewriteNext(b => { if (b.draft){ b.draft.msgType = "BA"; b.draft.extra = ""; } });
+    try { await say("다듬어줘"); } finally { fetchHook = null; }
+    const tc = q(".chat-type-change", lastBot());
+    const changed = vis(tc) && txt(tc).includes("메시지 유형: 복합형 → 기본형") && !txt(tc).includes("강조 유형") && !!q(".chat-apply", lastBot());
+    const changedDetail = "typeChange=" + (tc ? txt(tc) : "없음");
+    // 유형이 같으면(가짜 LLM 그대로) 표시 없음
+    await prepareMixedForm();
+    await say("다듬어줘");
+    const same = !q(".chat-type-change", lastBot()) && !!q(".chat-apply", lastBot());
+    rec("polishBubbleShowsTypeChange", changed && same, changedDetail + " sameTypeNoLine=" + same);
+  });
+
+  await block(["polishBubbleShowsItemListAndChannelAdd"], async () => {
+    resetForm();
+    await newChat();
+    w.confirm = () => true;
+    const XSS = "<img src=x onerror=alert(1)>";
+    let alerted = false;
+    const realAlert = w.alert;
+    w.alert = () => { alerted = true; };
+    rewriteNext(b => {
+      if (!b.draft) return;
+      b.draft.msgType = "AD"; b.draft.emph = "ITEM_LIST";
+      b.draft.item = { header: "다듬은 헤더" + XSS, hlTitle: "", hlDesc: "",
+        list: [{ name: "상품명", desc: "키보드" }, { name: "수량", desc: "2개" }], sumName: "결제금액", sumDesc: "#{결제금액}원" };
+    });
+    try { await say("다듬어줘"); } finally { fetchHook = null; }
+    await sleep(300);
+    const lb = lastBot(), ip = q(".chat-item-preview", lb), ad = q(".chat-ad-line", lb), tc = q(".chat-type-change", lb);
+    const it = txt(ip);
+    rec("polishBubbleShowsItemListAndChannelAdd",
+      vis(ip) && it.includes("다듬은 헤더") && it.includes(XSS) && it.includes("상품명: 키보드") && it.includes("수량: 2개") && it.includes("결제금액: #{결제금액}원")
+        && vis(ad) && txt(ad).includes("채널 추가") && !lb.querySelector("img") && !alerted
+        && !!tc && txt(tc).includes("→ 아이템리스트형") && txt(tc).includes("→ 채널추가형"),
+      `item=${it.slice(0, 120)} ad=${ad ? txt(ad) : "없음"} imgEl=${!!lb.querySelector("img")} alerted=${alerted} typeChange=${tc ? txt(tc) : "없음"}`);
+    w.alert = realAlert;
+  });
+
+  await block(["polishTypeChangeWarningShown"], async () => {
+    await prepareMixedForm();
+    rewriteNext(b => { if (b.draft){ b.draft.msgType = "BA"; b.draft.extra = ""; } b.warnings = [TYPE_WARN]; });
+    try { await say("다듬어줘"); } finally { fetchHook = null; }
+    const lb = lastBot(), li = qa(".issues li", lb).map(txt);
+    rec("polishTypeChangeWarningShown", li.some(t => t.includes(TYPE_WARN)) && !!q(".chat-apply", lb),
+      "issues=" + JSON.stringify(li).slice(0, 160));
+  });
+
+  /* ---------- 11-10) 강조 표기형이 아닌 초안을 적용하면 숨은 강조 제목·보조 문구를 비운다 ---------- */
+  await block(["nonTextDraftClearsHiddenTitle"], async () => {
+    resetForm();
+    await newChat();
+    w.confirm = () => true;
+    rewriteNext(b => { if (b.draft){ b.draft.emph = "IMAGE"; b.draft.title = "숨은 제목"; b.draft.sub = "숨은 보조"; } });
+    try { await say("주문 완료 알림 만들어줘"); } finally { fetchHook = null; }
+    const emphImage = checkedVal("emph") === "IMAGE";
+    const cleared = $("emTitle").value === "" && $("emSub").value === "";
+    d.querySelector("input[name=emph][value=TEXT]").click();
+    await sleep(100);
+    const pv = $("pvBubble").textContent;
+    rec("nonTextDraftClearsHiddenTitle", emphImage && cleared && !pv.includes("숨은 제목") && !pv.includes("숨은 보조"),
+      `emph=IMAGE:${emphImage} title=${$("emTitle").value} sub=${$("emSub").value} pvHidden=${!pv.includes("숨은 제목") && !pv.includes("숨은 보조")}`);
+  });
+
+  /* ---------- 11-11) 새로 만들기 이미지형 초안 안내는 실제로 폼에 채웠을 때만 ---------- */
+  await block(["imageNoteOnlyWhenApplied"], async () => {
+    resetForm();
+    await newChat();
+    setVal("tplName", "직접 고친 이름");
+    w.confirm = () => false;
+    await say("이미지형으로 배송 안내");
+    const lb = lastBot();
+    const noNoteOnCancel = !q(".chat-image-note", lb) && $("tplName").value === "직접 고친 이름";
+    const later = q(".chat-apply-later", lb);
+    const laterShown = vis(later);
+    w.confirm = () => true;
+    await clickAct(".chat-apply-later", false);
+    const note = q(".chat-image-note", lb);
+    rec("imageNoteOnlyWhenApplied",
+      noNoteOnCancel && laterShown && vis(note) && txt(note).includes("이미지는 폼에서 올려 주세요") && checkedVal("emph") === "IMAGE" && $("tplName").value !== "직접 고친 이름",
+      `noNoteOnCancel=${noNoteOnCancel} laterBtn=${laterShown} noteAfterApply=${note ? txt(note) : "없음"} emph=${checkedVal("emph")}`);
+  });
+  fetchHook = null;
+
   /* ---------- 12) 본문이 비면 [지금 폼 다듬기] 비활성 ---------- */
   await block(["polishStartDisabledWhenEmpty"], async () => {
     resetForm();

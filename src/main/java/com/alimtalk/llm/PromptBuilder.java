@@ -49,7 +49,9 @@ public class PromptBuilder {
         }
         String keepExtra = "EX".equals(form.msgType()) || "MI".equals(form.msgType())
                 ? "※ 부가정보가 있는 유형이다. 다듬을 때 부가정보를 비우지 말고 유지하며 함께 다듬는다.\n" : "";
-        return "현재 폼:\n" + describe(form) + keepExtra;
+        String keepTypes = "※ 현재 메시지 유형 " + nz(form.msgType()) + ", 강조 유형 " + nz(form.emph())
+                + ". 다듬을 때는 사용자가 바꾸라고 하지 않으면 그대로 유지한다.\n";
+        return "현재 폼:\n" + describe(form) + keepExtra + keepTypes;
     }
 
     private static boolean isEmpty(TemplateDraft d) {
@@ -92,7 +94,7 @@ public class PromptBuilder {
                 .collect(Collectors.joining("\n"));
         return guide
                 + "\n\n## 6. 형식 목표 (반드시 지킨다)\n"
-                + "- 강조 제목·보조 문구·본문·부가정보를 합친 길이: 변수를 예시값으로 바꿨을 때 " + rules.promptLengthTarget() + "자 이내\n"
+                + "- 강조 제목·보조 문구·아이템리스트·본문·부가정보를 합친 길이: 변수를 예시값으로 바꿨을 때 " + rules.promptLengthTarget() + "자 이내\n"
                 + "- 부가정보: " + target(lim.extra()) + "자 이내\n"
                 + "- 강조 제목·보조 문구: 각각 " + target(lim.title()) + "자 이내\n"
                 + "- 템플릿 이름: " + target(lim.name()) + "자 이내\n"

@@ -26,8 +26,8 @@ public record LlmOutput(
             @JsonPropertyDescription("카테고리 코드") String category,
             @JsonPropertyDescription("템플릿 이름") String name,
             @JsonPropertyDescription("템플릿 코드 (영문·숫자·_)") String code,
-            @JsonPropertyDescription("메시지 유형: BA(기본형), EX(부가정보형), AD(채널추가형), MI(복합형=부가정보+채널추가). AD·MI는 사용자가 채널 추가를 요청했을 때만") MsgType msgType,
-            @JsonPropertyDescription("강조 유형: NONE(선택 안 함), TEXT(강조 표기형), IMAGE(이미지형), ITEM_LIST(아이템리스트형). IMAGE·ITEM_LIST는 사용자가 요청했을 때만") Emph emph,
+            @JsonPropertyDescription("메시지 유형: BA(기본형), EX(부가정보형), AD(채널추가형), MI(복합형=부가정보+채널추가). AD·MI는 새로 만들 때 사용자가 채널 추가를 요청했을 때만, 다듬기에서는 현재 폼의 유형을 유지") MsgType msgType,
+            @JsonPropertyDescription("강조 유형: NONE(선택 안 함), TEXT(강조 표기형), IMAGE(이미지형), ITEM_LIST(아이템리스트형). IMAGE·ITEM_LIST는 새로 만들 때 사용자가 요청했을 때만, 다듬기에서는 현재 폼의 유형을 유지") Emph emph,
             @JsonPropertyDescription("강조 제목. emph가 TEXT일 때만, 아니면 빈 문자열") String title,
             @JsonPropertyDescription("강조 보조 문구. 변수 금지. emph가 TEXT일 때만, 아니면 빈 문자열") String sub,
             @JsonPropertyDescription("본문. 변수는 #{변수명}") String content,
@@ -63,7 +63,7 @@ public record LlmOutput(
             @JsonPropertyDescription("아이템 하이라이트 설명. 변수 가능, 없으면 빈 문자열") String hlDesc,
             @JsonPropertyDescription("항목 2~10개") List<RowOut> list,
             @JsonPropertyDescription("요약 이름(예: 총 결제금액). 변수 금지. 요약을 쓰지 않으면 빈 문자열") String sumName,
-            @JsonPropertyDescription("요약 내용. 숫자·쉼표·마침표·통화기호·통화단위만(예: #{결제금액}원). 요약을 쓰지 않으면 빈 문자열") String sumDesc) {
+            @JsonPropertyDescription("요약 내용. 숫자·쉼표·마침표·통화기호·통화단위만(예: #{결제금액}원, 이 변수의 예시값은 숫자만 129,000). 요약을 쓰지 않으면 빈 문자열") String sumDesc) {
 
         TemplateDraft.Item toItem() {
             List<TemplateDraft.Row> rows = list == null ? List.of()

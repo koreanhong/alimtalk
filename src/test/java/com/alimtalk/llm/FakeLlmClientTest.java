@@ -207,4 +207,15 @@ class FakeLlmClientTest {
 
         assertThat(out.status()).isEqualTo(LlmOutput.Status.OK);
     }
+
+    @Test
+    void retryNoteDoesNotChangeRule() {
+        String retry = PROMPTS.retryNote(new com.alimtalk.template.TemplateDraft("002001", "n", "C", "BA", "NONE", "", "", "본문", "",
+                false, java.util.Map.of()), List.of("본문이 1,100자입니다 (강조·아이템리스트·부가정보 포함, 최대 1,000자). 채널 이미지"));
+        LlmOutput out = send(LlmTurn.user("발신 채널: 아디다스\n현재 폼: 비어 있음\n\n요청: 위반 테스트\n\n" + retry));
+
+        assertThat(out.draft().emph()).isEqualTo(LlmOutput.Emph.NONE);
+        assertThat(out.draft().msgType()).isNotEqualTo(LlmOutput.MsgType.AD);
+        assertThat(out.draft().content().length()).isGreaterThan(1000);
+    }
 }

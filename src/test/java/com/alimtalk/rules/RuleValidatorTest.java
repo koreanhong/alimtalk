@@ -299,4 +299,11 @@ class RuleValidatorTest {
                 "", "", "주문이 접수되었습니다.", "", false, Map.of(), item("", "", "", List.of(), "#{x}", "무료"));
         assertThat(validator.validate(d).errors()).isEmpty();
     }
+
+    @Test
+    void totalLengthMessageMentionsItemList() {
+        List<TemplateDraft.Row> rows = List.of(row("내용", "가".repeat(600)), row("추가", "나".repeat(500)));
+        TemplateDraft d = itemDraft(item("주문 내역", "", "", rows, "", ""), ITEM_SAMPLES);
+        assertThat(validator.validate(d).errors()).anyMatch(e -> e.contains("강조·아이템리스트·부가정보 포함"));
+    }
 }

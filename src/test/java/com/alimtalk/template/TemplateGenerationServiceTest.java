@@ -277,6 +277,48 @@ class TemplateGenerationServiceTest {
     }
 
     @Test
+    void polishTypeChangeAddsWarning() throws Exception {
+        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.BA, LlmOutput.Emph.NONE, "", "", ""));
+
+        GenerationResult.Success s = (GenerationResult.Success) service.chat(List.of(u("더 정중하게")),
+                formOf("AD", "IMAGE", "", "", ""), "아디다스");
+
+        assertThat(s.warnings()).anyMatch(w -> w.contains("메시지 유형") && w.contains("채널추가형") && w.contains("기본형"));
+        assertThat(s.warnings()).anyMatch(w -> w.contains("강조 유형") && w.contains("이미지형") && w.contains("선택 안 함"));
+    }
+
+    @Test
+    void polishSameTypesHasNoTypeWarning() throws Exception {
+        llm.then(polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.AD, LlmOutput.Emph.IMAGE, "", "", ""));
+
+        GenerationResult.Success s = (GenerationResult.Success) service.chat(List.of(u("더 정중하게")),
+                formOf("AD", "IMAGE", "", "", ""), "아디다스");
+
+        assertThat(s.warnings()).noneMatch(w -> w.contains("유형이"));
+    }
+
+    @Test
+    void newDraftTypeDifferenceHasNoWarning() throws Exception {
+        llm.then(valid());
+
+        GenerationResult.Success s = (GenerationResult.Success) service.chat(List.of(u("배송 안내 만들어줘")),
+                formOf("MI", "ITEM_LIST", "", "", "문의"), "아디다스");
+
+        assertThat(s.warnings()).noneMatch(w -> w.contains("유형이"));
+    }
+
+    @Test
+    void polishTypeChangeWarningAlsoOnViolation() throws Exception {
+        LlmOutput noExtra = polished("#{고객명}님, 배송이 시작되었습니다.", LlmOutput.MsgType.EX, LlmOutput.Emph.NONE, "", "", "");
+        llm.then(noExtra).then(noExtra).then(noExtra);
+
+        GenerationResult.RuleViolation v = (GenerationResult.RuleViolation) service.chat(List.of(u("더 정중하게")),
+                formOf("MI", "NONE", "", "", "문의"), "아디다스");
+
+        assertThat(v.warnings()).anyMatch(w -> w.contains("복합형") && w.contains("부가정보형"));
+    }
+
+    @Test
     void polishWithNullFormTypesDoesNotFail() throws Exception {
         TemplateDraft form = new TemplateDraft("003001", "배송 시작 안내", "SHIP_START_01", null, null, null, null,
                 "본문 #{고객명}", null, false, null);

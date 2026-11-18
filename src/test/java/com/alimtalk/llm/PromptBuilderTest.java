@@ -150,4 +150,18 @@ class PromptBuilderTest {
         assertThat(system).contains("아이템리스트").contains("헤더 11자").contains("2~10개");
         assertThat(system).contains("채널추가형").contains("요청했을 때만");
     }
+
+    @Test
+    void formContextAsksToKeepTypes() {
+        TemplateDraft form = new TemplateDraft("003001", "배송", "C", "AD", "IMAGE", "", "", "본문", "", false, Map.of());
+        assertThat(builder.formContext(form)).contains("※ 현재 메시지 유형 AD, 강조 유형 IMAGE").contains("바꾸라고 하지 않으면 그대로");
+    }
+
+    @Test
+    void systemTargetsMentionItemListAndPolishKeepsTypes() {
+        String system = builder.system();
+        assertThat(system).contains("강조 제목·보조 문구·아이템리스트·본문·부가정보를 합친 길이");
+        assertThat(system).contains("새로 만들 때 기준").contains("다듬기에서는 현재 폼의 유형을 유지");
+        assertThat(system).contains("예시값은 숫자");
+    }
 }

@@ -192,6 +192,9 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
 .chat-msg .issues li{font-size:12px;padding:6px 10px;white-space:pre-wrap;word-break:break-word}
 .chat-preview{margin:0;padding:8px 10px;max-height:160px;overflow-y:auto;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-all;color:var(--fg)}
 .chat-preview .extra-line{display:block;margin-top:6px;color:var(--fg-3)}
+.chat-type-change{margin:0 0 6px;padding:4px 8px;border-radius:6px;background:var(--surface);border:1px solid var(--line);font-size:12px;color:var(--fg-2);white-space:normal}
+.chat-preview .chat-item-preview{display:block;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);color:var(--fg-2)}
+.chat-preview .chat-ad-line{display:block;margin-top:6px;color:var(--fg-3)}
 .chat-opts{display:flex;flex-wrap:wrap;gap:6px}
 .chat-start,.chat-choice,.chat-act{font:inherit;font-size:12px;padding:4px 11px;border-radius:999px;cursor:pointer}
 .chat-start{border:1px solid var(--line-strong);background:var(--surface);color:var(--fg-2)}
@@ -733,6 +736,11 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     return { header: str(it.header), hlTitle: str(it.hlTitle), hlDesc: str(it.hlDesc), list, sumName: str(it.sumName), sumDesc: str(it.sumDesc) };
   }
 
+  /* 강조 표기형이 아니면 숨은 강조 제목·보조 문구를 비운다(나중에 강조 표기형으로 바꿨을 때 모르는 문구가 나타나지 않게) */
+  function clearHiddenEmphText(){
+    if (state.emph !== "TEXT"){ state.title = ""; state.sub = ""; }
+  }
+
   /* 새로 만들기: 폼이 수정됐으면 확인 후 덮어쓴다. 아이템리스트는 초안 값(아이템리스트형일 때)으로, 버튼·이미지는 비운다 */
   function applyDraft(draft){
     if (formEdited() && !confirm("현재 입력한 내용을 덮어씁니다. 계속할까요?")) return false;
@@ -743,6 +751,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
       else if (k === "security") state.security = !!draft.security;
       else state[k] = draft[k] == null ? "" : String(draft[k]);
     }
+    clearHiddenEmphText();
     clearImages();
     fillForm(); update();
     baseline = formJson(state);
@@ -761,6 +770,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
       else if (k === "security") state.security = !!draft.security;
       else state[k] = draft[k] == null ? "" : String(draft[k]);
     }
+    clearHiddenEmphText();
     fillForm(); update();
     if (untouched) baseline = formJson(state);
   }
@@ -940,18 +950,43 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     return `<ul class="issues">${items.map(([c, t]) => `<li class="${c}">${c === "e" ? "✕" : "!"} ${esc(t)}</li>`).join("")}</ul>`;
   }
 
-  function previewHtml(d){
+  const MSG_TYPE_NAME = { BA: "기본형", EX: "부가정보형", AD: "채널추가형", MI: "복합형" };
+  const EMPH_NAME = { NONE: "선택 안 함", TEXT: "강조 표기형", IMAGE: "이미지형", ITEM_LIST: "아이템리스트형" };
+  function typeName(map, v){ return Object.hasOwn(map, v) ? map[v] : String(v == null ? "" : v); }
+
+  /* 초안 미리보기. opts.typeChange면 지금 폼(state)과 유형이 다를 때 맨 위에 "이전 → 이후" 줄을 붙인다(다듬기 전용) */
+  function previewHtml(d, opts){
+    let top = "";
+    if (opts && opts.typeChange){
+      const lines = [];
+      if (d.msgType && d.msgType !== state.msgType) lines.push(`메시지 유형: ${esc(typeName(MSG_TYPE_NAME, state.msgType))} → ${esc(typeName(MSG_TYPE_NAME, d.msgType))}`);
+      if (d.emph && d.emph !== state.emph) lines.push(`강조 유형: ${esc(typeName(EMPH_NAME, state.emph))} → ${esc(typeName(EMPH_NAME, d.emph))}`);
+      if (lines.length) top = `<div class="chat-type-change">${lines.join("<br>")}</div>`;
+    }
     let h = "";
     if (d.emph === "TEXT" && (d.title || d.sub)) h += `${esc(d.sub || "")}\n${esc(d.title || "")}\n\n`;
     h += esc(d.content || "");
     if ((d.msgType === "EX" || d.msgType === "MI") && d.extra) h += `<span class="extra-line">${esc(d.extra)}</span>`;
-    return `<div class="chat-preview">${h}</div>`;
+    const it = draftItem(d);
+    if (it){
+      const s = v => esc(String(v == null ? "" : v));
+      const rows = [];
+      if (it.header) rows.push(s(it.header));
+      if (it.hlTitle || it.hlDesc) rows.push([it.hlTitle, it.hlDesc].filter(Boolean).map(s).join(" / "));
+      it.list.filter(r => r.name || r.desc).forEach(r => rows.push(`${s(r.name)}: ${s(r.desc)}`));
+      if (it.sumName || it.sumDesc) rows.push(`${s(it.sumName)}: ${s(it.sumDesc)}`);
+      if (rows.length) h += `<span class="chat-item-preview">${rows.join("\n")}</span>`;
+    }
+    if (d.msgType === "AD" || d.msgType === "MI") h += `<span class="chat-ad-line">${esc(AD_TEXT)}</span>`;
+    return `${top}<div class="chat-preview">${h}</div>`;
   }
 
   /* 버튼을 누른 뒤 그 말풍선의 처리 버튼을 끄고 결과 문구를 남긴다 */
-  function finishActs(m, note){
+  const IMAGE_NOTE = "이미지는 폼에서 올려 주세요.";
+  function finishActs(m, note, imageNote){
     m.querySelectorAll(".chat-act").forEach(b => { b.dataset.done = "1"; });
     if (note){ const n = document.createElement("div"); n.className = "chat-note"; n.textContent = note; m.appendChild(n); }
+    if (imageNote){ const n = document.createElement("div"); n.className = "chat-image-note"; n.textContent = IMAGE_NOTE; m.appendChild(n); }
     syncChat(); scrollChat();
   }
 
@@ -967,6 +1002,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     const bubble = document.createElement("div"); bubble.className = "chat-bubble"; m.appendChild(bubble);
     const acts = document.createElement("div"); acts.className = "chat-opts";
     let html = esc(text);
+    let newApplied = false;   // 새로 만들기 초안이 지금 폼에 채워졌는지(이미지 안내 판단용)
 
     if (kind === "DRAFT" && data.draft){
       const draft = data.draft;
@@ -975,11 +1011,11 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
       const warnings = Array.isArray(data.warnings) ? data.warnings : [];
       if (errors.length){
         html += `\n<span class="chat-note">규칙을 모두 맞추지 못했습니다. 아래 항목을 확인해 주세요.</span>`;
-        if (polish) html += previewHtml(draft);
+        if (polish) html += previewHtml(draft, { typeChange: true });
         html += issuesHtml(errors, warnings);
         acts.appendChild(makeBtn("chat-act main chat-apply-anyway", polish ? "그래도 적용" : "그래도 폼에 채우기", () => {
           if (polish){ applyPolish(draft); finishActs(m, "폼에 적용했습니다. 위반 항목을 직접 고쳐 주세요."); }
-          else if (applyDraft(draft)) finishActs(m, "폼에 채웠습니다. 위반 항목을 직접 고쳐 주세요.");
+          else if (applyDraft(draft)) finishActs(m, "폼에 채웠습니다. 위반 항목을 직접 고쳐 주세요.", draft.emph === "IMAGE");
         }));
         acts.appendChild(makeBtn("chat-act chat-retry", polish ? "다시 다듬기" : "다시 생성", () => {
           if (chatBusy || m !== lastReply) return;
@@ -987,25 +1023,26 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
           chatRequest(sent.slice(), chatHistory.slice());  // 같은 대화 기록을 그대로 다시 요청, 실패하면 지금 기록(위반 응답 포함) 유지
         }));
       } else if (polish){
-        html += previewHtml(draft) + issuesHtml([], warnings);
+        html += previewHtml(draft, { typeChange: true }) + issuesHtml([], warnings);
         acts.appendChild(makeBtn("chat-act main chat-apply", "적용", () => { applyPolish(draft); finishActs(m, "폼에 적용했습니다."); }));
         acts.appendChild(makeBtn("chat-act chat-cancel", "취소", () => finishActs(m, "적용하지 않았습니다.")));
       } else {
         const applied = applyDraft(draft);
+        newApplied = applied;
         html += issuesHtml([], warnings);
         if (applied){
           html += `\n<span class="chat-note">폼에 채웠습니다. 버튼·이미지 파일은 직접 설정해 주세요.</span>`;
         } else {
           html += `\n<span class="chat-note">덮어쓰기를 취소했습니다. 결과는 보관해 두었으니 [폼에 채우기]로 다시 채울 수 있습니다.</span>`;
           acts.appendChild(makeBtn("chat-act main chat-apply-later", "폼에 채우기", () => {
-            if (applyDraft(draft)) finishActs(m, "폼에 채웠습니다.");
+            if (applyDraft(draft)) finishActs(m, "폼에 채웠습니다.", draft.emph === "IMAGE");
           }));
         }
       }
     }
-    /* 이미지형 초안인데 이미지가 없으면 안내(새로 만들기는 적용 시 이미지를 비우므로 항상, 다듬기는 이미지형 이미지가 없을 때) */
-    if (kind === "DRAFT" && data.draft && data.draft.emph === "IMAGE" && (data.mode !== "POLISH" || !imageData)){
-      html += `<div class="chat-image-note">이미지는 폼에서 올려 주세요.</div>`;
+    /* 이미지형 초안 안내: 새로 만들기는 폼에 채웠을 때만(적용 시 이미지를 비움, 나중에 채우면 그때 안내), 다듬기는 이미지형 이미지가 없을 때 */
+    if (kind === "DRAFT" && data.draft && data.draft.emph === "IMAGE" && (data.mode === "POLISH" ? !imageData : newApplied)){
+      html += `<div class="chat-image-note">${esc(IMAGE_NOTE)}</div>`;
     }
     bubble.innerHTML = html;
     if (acts.childNodes.length) m.appendChild(acts);
