@@ -102,6 +102,19 @@ f.addEventListener("load", async () => {
     if (!await waitReply(n)) throw new Error("시작 선택지 클릭 후 응답 없음: " + sel);
   }
   function resetForm(){ w.confirm = () => true; $("resetBtn").click(); }
+  /* 아이템리스트 항목 행을 [[항목명, 내용], ...]으로 채운다 (행이 모자라면 + 항목 추가) */
+  function fillItemRows(rows){
+    while ($("itemList").querySelectorAll(".item-row").length < rows.length) need($("addItem"), "#addItem").click();
+    rows.forEach(([name, desc], i) => {
+      const r = $("itemList").querySelectorAll(".item-row")[i];
+      for (const [k, v] of [["name", name], ["desc", desc]]){
+        const el = need(r.querySelector(`[data-ik=${k}]`), `${i + 1}번 항목 ${k}`);
+        el.value = v; el.dispatchEvent(new w.Event("input", { bubbles: true }));
+      }
+    });
+  }
+  const itemRowVals = () => [...$("itemList").querySelectorAll(".item-row")].map(r => [(r.querySelector("[data-ik=name]") || {}).value, (r.querySelector("[data-ik=desc]") || {}).value]);
+  const checkedVal = (name) => (d.querySelector(`input[name=${name}]:checked`) || {}).value;
 
   try {
   const SAMPLE_CONTENT = $("content").value;
@@ -184,7 +197,8 @@ f.addEventListener("load", async () => {
         && vis(polish) && /다듬기/.test(txt(polish)) && !polish.disabled,
       "starts=" + starts.map(b => txt(b) + "→" + b.dataset.say).join(" / ") + " polish=" + (polish ? txt(polish) + (polish.disabled ? "(disabled)" : "") : "없음"));
     const sc = $("chatScope");
-    rec("chatScopeNotice", vis(sc) && win.contains(sc) && /기본형/.test(txt(sc)) && /부가정보형/.test(txt(sc)) && /버튼/.test(txt(sc)) && /이미지/.test(txt(sc)) && /아이템리스트/.test(txt(sc)),
+    // 문구 내용은 scopeTextUpdated에서 확인. 여기서는 챗봇 창 안에 보이는지와 버튼은 직접 설정한다는 안내만 본다
+    rec("chatScopeNotice", vis(sc) && win.contains(sc) && /버튼/.test(txt(sc)),
       sc ? txt(sc) : "missing");
   });
 
@@ -392,6 +406,8 @@ f.addEventListener("load", async () => {
     const channel = $("channel").value;
     d.querySelector("input[name=emph][value=ITEM_LIST]").click();
     $("itHeader").value = "주문 내역"; $("itHeader").dispatchEvent(new w.Event("input"));
+    // 서버가 아이템리스트 규칙(항목 2개 이상·항목명과 내용 필수)을 점검하므로 항목을 모두 채운다
+    fillItemRows([["상품명", "키보드"], ["수량", "1개"]]);
     await fakeImage($("itImg"));
     w.confirm = () => true;
     await say("더 정중하게 다듬어줘");
@@ -430,6 +446,7 @@ f.addEventListener("load", async () => {
     await newChat();
     d.querySelector("input[name=emph][value=ITEM_LIST]").click();
     setVal("itHeader", "주문 내역");
+    fillItemRows([["상품명", "키보드"], ["수량", "1개"]]);
     w.confirm = () => true;
     await say("다듬어줘 위반");
     const reqA = lastReq();
@@ -443,11 +460,12 @@ f.addEventListener("load", async () => {
     rec("polishViolationRetrySameMessages", chatReqs.length === nReq + 1 && msgsJson(lastReq()) === msgsJson(reqA),
       `requests+${chatReqs.length - nReq} same=${msgsJson(lastReq()) === msgsJson(reqA)} msgs=${msgsJson(lastReq()).slice(0, 80)}`);
     await clickAct(".chat-apply-anyway", false);
+    // 설계 12.5: 다듬기 적용은 유형도 초안대로 반영(가짜 위반 초안은 EX·NONE). 초안이 ITEM_LIST가 아니면 폼의 아이템리스트 값은 그대로 둔다
     rec("polishViolationApplyAnywayKeepsButtonsAndItemList",
       $("content").value.startsWith("#{고객명}님, 주문이 접수되었습니다") && $("content").value.length > 1000
         && btnNames().join(",") === "주문 상세 보기,배송 조회"
-        && d.querySelector("input[name=emph][value=ITEM_LIST]").checked && $("itHeader").value === "주문 내역",
-      `len=${$("content").value.length} buttons=${btnNames().join(",")} itemList=${d.querySelector("input[name=emph][value=ITEM_LIST]").checked} header=${$("itHeader").value}`);
+        && checkedVal("emph") === "NONE" && $("itHeader").value === "주문 내역" && itemRowVals()[0][0] === "상품명",
+      `len=${$("content").value.length} buttons=${btnNames().join(",")} emph=${checkedVal("emph")} header=${$("itHeader").value} rows=${JSON.stringify(itemRowVals())}`);
   });
 
   /* ---------- 11-3) [다시 생성]: 같은 대화 기록으로 재요청. 재요청이 실패해도 이전 대화 기록은 남는다 ---------- */
@@ -504,8 +522,7 @@ f.addEventListener("load", async () => {
     await newChat();
     d.querySelector("input[name=emph][value=ITEM_LIST]").click();
     setVal("itHeader", "주문 내역");
-    const desc = need($("itemList").querySelector("[data-ik=desc]"), "아이템 내용 칸");
-    desc.value = "#{배송지}"; desc.dispatchEvent(new w.Event("input", { bubbles: true }));
+    fillItemRows([["배송지", "#{배송지}"], ["수량", "1개"]]);
     setSample("배송지", "서울시 테스트구");
     await say("다듬어줘");
     await clickAct(".chat-apply", false);
@@ -529,6 +546,128 @@ f.addEventListener("load", async () => {
         && $("extra").value === "복합형 부가정보 원래 값" && $("btnList").textContent.includes("채널 추가 (AC)")
         && $("pvBubble").textContent.includes("채널 추가"),
       `content=${$("content").value.slice(0, 15)} MI=${d.querySelector("input[name=msgType][value=MI]").checked} extra=${$("extra").value} AC=${$("btnList").textContent.includes("채널 추가 (AC)")}`);
+  });
+
+  /* ---------- 11-5-1) 자동 작성 범위 확장(설계 12장): 아이템리스트형·채널추가형·이미지형 초안 ---------- */
+  await block(["itemListDraftFillsForm"], async () => {
+    resetForm();
+    await newChat();
+    w.confirm = () => true;
+    await say("아이템리스트로 주문 안내");
+    const rows = itemRowVals();
+    rec("itemListDraftFillsForm",
+      checkedVal("emph") === "ITEM_LIST" && $("itHeader").value === "주문 내역"
+        && rows.length === 2 && rows[0][0] === "상품명" && rows[0][1] === "#{상품명}" && rows[1][0] === "수량" && rows[1][1] === "1개"
+        && $("itSumName").value === "결제금액" && $("itSumDesc").value === "#{결제금액}원"
+        && $("pvBubble").textContent.includes("주문 내역"),
+      `emph=${checkedVal("emph")} header=${$("itHeader").value} rows=${JSON.stringify(rows)} sum=${$("itSumName").value}|${$("itSumDesc").value} pv=${$("pvBubble").textContent.slice(0, 30)}`);
+  });
+
+  await block(["channelAddDraftAddsAcButton"], async () => {
+    resetForm();
+    await newChat();
+    w.confirm = () => true;
+    await say("채널 추가 넣은 주문 안내");
+    rec("channelAddDraftAddsAcButton",
+      checkedVal("msgType") === "AD" && $("btnList").textContent.includes("채널 추가 (AC)") && $("pvBubble").textContent.includes("채널 추가"),
+      `msgType=${checkedVal("msgType")} AC=${$("btnList").textContent.includes("채널 추가 (AC)")} pv=${$("pvBubble").textContent.includes("채널 추가")}`);
+  });
+
+  await block(["imageDraftShowsUploadNotice"], async () => {
+    resetForm();   // 이미지 비움
+    await newChat();
+    w.confirm = () => true;
+    await say("이미지형으로 배송 안내");
+    const note = q(".chat-image-note", lastBot());
+    const noteOk = vis(note) && txt(note).includes("이미지는 폼에서 올려 주세요");
+    const emphOk = checkedVal("emph") === "IMAGE";
+    // 이미지를 이미 올린 이미지형 폼을 다듬으면 안내가 없어야 한다
+    resetForm();
+    d.querySelector("input[name=emph][value=IMAGE]").click();
+    await fakeImage($("emImg"));
+    await newChat();
+    await say("다듬어줘");
+    const lb = lastBot(), noNote = !q(".chat-image-note", lb) && !!q(".chat-apply", lb);
+    rec("imageDraftShowsUploadNotice", noteOk && emphOk && noNote,
+      `note=${note ? txt(note) : "없음"} emph=${emphOk} uploadedNoNote=${noNote}(apply=${!!q(".chat-apply", lb)} bot=${txt(lb).slice(0, 40)})`);
+  });
+
+  await block(["polishKeepsImageAndButtons"], async () => {
+    resetForm();
+    d.querySelector("input[name=emph][value=IMAGE]").click();
+    await fakeImage($("emImg"));
+    await newChat();
+    w.confirm = () => true;
+    await say("다듬어줘");
+    await clickAct(".chat-apply", false);
+    const img = $("pvBubble").querySelector("img.hero");
+    rec("polishKeepsImageAndButtons",
+      $("content").value.startsWith("[다듬음] ") && checkedVal("emph") === "IMAGE" && $("emImg").value !== "" && !!img
+        && btnNames().join(",") === "주문 상세 보기,배송 조회",
+      `content=${$("content").value.slice(0, 15)} emph=${checkedVal("emph")} emImg=${$("emImg").value !== ""} pvImg=${!!img} buttons=${btnNames().join(",")}`);
+  });
+
+  await block(["polishAppliesItemList", "polishAppliesDraftItemValues"], async () => {
+    const prepare = async () => {
+      resetForm();
+      d.querySelector("input[name=emph][value=ITEM_LIST]").click();
+      setVal("itHeader", "주문 내역");
+      fillItemRows([["상품명", "키보드"], ["수량", "1개"]]);
+      await newChat();
+      w.confirm = () => true;
+    };
+    await prepare();
+    await say("다듬어줘");
+    await clickAct(".chat-apply", false);
+    const rows = itemRowVals();
+    rec("polishAppliesItemList",
+      $("content").value.startsWith("[다듬음] ") && checkedVal("emph") === "ITEM_LIST" && $("itHeader").value === "주문 내역"
+        && JSON.stringify(rows) === JSON.stringify([["상품명", "키보드"], ["수량", "1개"]]),
+      `content=${$("content").value.slice(0, 15)} emph=${checkedVal("emph")} header=${$("itHeader").value} rows=${JSON.stringify(rows)}`);
+    // 다듬기 결과의 아이템리스트 값이 폼에 반영되는지(폼 값을 그냥 유지하는 것과 구분): 응답의 draft.item을 바꿔 돌려준다
+    await prepare();
+    fetchHook = async (url, opts) => {
+      const res = await realFetch(url, opts), body = await res.json();
+      if (body.draft && body.draft.item){
+        body.draft.item.header = "다듬은 헤더";
+        body.draft.item.list = [{ name: "상품", desc: "키보드" }, { name: "수량", desc: "2개" }, { name: "배송", desc: "무료" }];
+      }
+      return jsonRes(res.status, body);
+    };
+    try { await say("다듬어줘"); } finally { fetchHook = null; }
+    await clickAct(".chat-apply", false);
+    const rows2 = itemRowVals();
+    rec("polishAppliesDraftItemValues",
+      checkedVal("emph") === "ITEM_LIST" && $("itHeader").value === "다듬은 헤더"
+        && JSON.stringify(rows2) === JSON.stringify([["상품", "키보드"], ["수량", "2개"], ["배송", "무료"]])
+        && $("pvBubble").textContent.includes("다듬은 헤더"),
+      `header=${$("itHeader").value} rows=${JSON.stringify(rows2)}`);
+  });
+
+  await block(["chatFormSendsItem"], async () => {
+    resetForm();
+    d.querySelector("input[name=emph][value=ITEM_LIST]").click();
+    setVal("itHeader", "주문 내역");
+    fillItemRows([["상품명", "#{상품명}"], ["배송지", "#{배송지}"], ["수량", "1개"]]);
+    setSample("배송지", "서울시 테스트구");
+    await newChat();
+    w.confirm = () => false;   // 초안이 와도 폼은 그대로
+    await say("주문 완료 알림 만들어줘");
+    w.confirm = () => true;
+    const fm = (lastReq() && lastReq().form) || {}, it = fm.item || {}, list = Array.isArray(it.list) ? it.list : [];
+    const s = fm.samples || {};
+    rec("chatFormSendsItem",
+      it.header === "주문 내역" && list.length === 3 && list[1] && list[1].name === "배송지" && list[1].desc === "#{배송지}"
+        && s["배송지"] === "서울시 테스트구" && fm.emph === "ITEM_LIST",
+      `item=${JSON.stringify(fm.item || null).slice(0, 120)} 배송지=${s["배송지"]} emph=${fm.emph}`);
+  });
+
+  await block(["scopeTextUpdated"], async () => {
+    await newChat();
+    const sc = $("chatScope"), t = txt(sc);
+    rec("scopeTextUpdated",
+      vis(sc) && t.includes("모든 메시지·강조 유형을 채웁니다") && t.includes("요청할 때만") && t.includes("이미지 파일과 버튼은 폼에서 직접"),
+      sc ? t : "missing");
   });
 
   /* ---------- 11-6) 폼에 넣지 않은 초안도 다음 요청의 대화 기록에 assistant 발화로 남는다 ---------- */

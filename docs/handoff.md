@@ -5,8 +5,8 @@
 ## 현재 상태 (2026-11-16 기준)
 - 기능: 화면 왼쪽 아래 💬 챗봇에서 대화(Claude 질문·선택지 + 자유 입력)로 템플릿 새로 만들기·다듬기 → 등록 폼 채움(`POST /api/templates/chat`). 자동 작성은 기본형·부가정보형 / 선택 안 함·강조 표기형만(확장 설계 승인, 구현 전). 수작업으로는 카카오 제공 유형 전부 설정 가능. 한 번에 채우기 API(`/generate`)는 남아 있으나 화면에서는 쓰지 않음. 화면은 라이트 테마 고정.
 - git: `main`에서 작업, GitHub `https://github.com/koreanhong/alimtalk.git`(origin) `main`에 2026-11-16 커밋(`73e8e59`)까지 push.
-- 대화형 세팅 계획 Task 1~5 완료, Task 6(실제 Claude 확인) 거의 완료, Task 7(범위 확장 서버) 완료(2026-11-18), Task 8(화면)·9 남음. **서버는 4종 유형·아이템리스트를 응답하지만 화면은 아직 예전 방식** — Task 8 전에는 실제 Claude로 확장 기능을 확인하지 않는다.
-- 테스트: 서버 160개 중 159개 통과·1개 skip(실제 호출 테스트, 2026-11-18). 화면 자동 점검 79항목 통과(2026-11-13). 실제 호출 테스트를 켜서 돌리면 실패함(아래 다음 작업 3).
+- 대화형 세팅 계획 Task 1~5 완료, Task 6(실제 Claude 확인) 거의 완료, Task 7(범위 확장 서버, 2026-11-18)·Task 8(화면, 2026-11-19) 완료, Task 9(리뷰·문서·실제 확인) 남음.
+- 테스트: 서버 160개 중 159개 통과·1개 skip(실제 호출 테스트, 2026-11-18). 화면 자동 점검 87항목 통과(2026-11-19). 실제 호출 테스트를 켜서 돌리면 실패함(아래 다음 작업 3).
 - 실제 Claude 사용량: 2026-11-15~16 28건 약 $0.50(추정, `logs/llm-usage-v2-summary.csv`). 대화 1턴 약 $0.008~0.021, 캐시 저장 첫 호출 약 $0.04~0.05.
 
 ### 주요 파일
@@ -81,12 +81,9 @@
    - 남은 확인: 5번(복합형 다듬기 후 부가정보·채널 추가 버튼 유지)을 화면에서 확인, 4번 [적용] 후 버튼·예시값 유지 확인.
    - run-guide 6장 수정: 3번 → [새 대화] 후 "새 메시지 하나 만들어줘", 질문에는 입력창에 "잘 모르겠어요" 직접 입력(예시 폼이 있으면 "세팅해줘"는 POLISH로 판단됨), 초안이 나오면 끝. 4번 → 폼 맨 아래 **[예시로 초기화]** 버튼(챗봇 입력 아님), 모든 시나리오는 [새 대화]로 시작하되 6번은 1번 대화에서 이어서.
    - 계획 Task 6 Step 3(커밋) 남음.
-2. **Task 8~9 자동 작성 범위 확장** — 설계 12장. Task 7(서버) 완료: `LlmOutput` 유형 enum 4종·`ItemOut`, `TemplateDraft.item`(보조 생성자로 기존 11개 인자 유지), 규칙 파일 유형 4종·`itemList.sumDescPattern`, `RuleValidator` 아이템리스트 점검·복합형 부가정보 필수, `PromptBuilder` 폼 문맥에 아이템리스트(본문 앞), 생성 지침 4·5장 유형 선택 규칙, 서비스의 범위 밖 처리(`keepFormTypes`·`checkedAsInScope`) 삭제, 가짜 LLM "아이템"·"채널"·"이미지" 규칙과 다듬기 시 폼 유형 유지. 커밋 `d04a4d7`, push 완료.
-   - **주의**: 지금은 서버만 바뀌고 화면은 예전 방식 → 아이템리스트형 초안을 적용하면 항목이 비워짐, 이미지 안내 없음, 폼 보낼 때 아이템리스트 빠짐, 범위 안내 문구 예전 그대로. Task 8 전에는 실제 Claude로 확장 기능을 확인하지 않는다.
-   - **다음: Task 8 화면** (계획 Task 8, 설계 12.5). 순서: test 에이전트가 점검 항목 먼저 작성·FAIL 확인 → frontend-developer가 `index.html` 구현 → test 에이전트가 가짜 LLM 서버(8081) + `src/test/ui/verify.sh` 전체 점검·스크린샷 → 커밋 승인.
-     - `index.html`: `applyDraft` — ITEM_LIST면 `draft.item`으로 채움(항목 2개 미만이면 빈 줄로 2개), 아니면 `emptyItem()`, 버튼·이미지는 지금처럼 비움. `applyPolish` — `keepMsgType`·`keepEmph`(범위 밖 유형 유지) 삭제, 유형 반영, ITEM_LIST면 `item`도 반영(아니면 기존 유지), 버튼·이미지(`imageData`·`itemImageData`·`thumbData`) 유지. 결과가 IMAGE이고 이미지가 없으면 말풍선에 `.chat-image-note` "이미지는 폼에서 올려 주세요.". `formSnapshot`에 `item` 포함(각 칸 200자·항목 10개로 자름) + 예시값 대상에 아이템리스트 칸(헤더·하이라이트·항목 내용·요약 내용). `SCOPE_HTML` → "모든 메시지·강조 유형을 채웁니다. 채널 추가·아이템리스트·이미지형은 요청할 때만 쓰며, 이미지 파일과 버튼은 폼에서 직접 설정해 주세요."
-     - `verify.html` 새 항목: `itemListDraftFillsForm`("아이템리스트로 주문 안내" → 헤더·항목 2개·요약·미리보기), `channelAddDraftAddsAcButton`("채널 추가 넣은 주문 안내" → AD, 채널 추가 버튼), `imageDraftShowsUploadNotice`("이미지형으로 배송 안내"), `polishKeepsImageAndButtons`, `polishAppliesItemList`, `chatFormSendsItem`, `scopeTextUpdated`. 가짜 LLM 규칙: "아이템"→ITEM_LIST, "채널"→AD, "이미지"→IMAGE, 다듬기는 폼 유형·item 유지(`FakeLlmClient`).
-     - `verify.html` 고칠 항목: `chatScopeNotice`(문구 변경), `polishApplyKeepsButtonsAndItemList`·`polishApplyKeepsItemListVarSample`(지금은 아이템 항목을 비운 채 다듬기 → 이제 서버가 규칙 위반으로 봄. 점검용 항목·헤더를 모두 채우도록), `polishApplyKeepsMixedType`(이제 서버가 아니라 가짜 LLM이 복합형 유지 — 기대 결과 재확인).
+2. **Task 9 자동 작성 범위 확장 마무리** — 설계 12장. Task 7(서버) 완료: `LlmOutput` 유형 enum 4종·`ItemOut`, `TemplateDraft.item`(보조 생성자로 기존 11개 인자 유지), 규칙 파일 유형 4종·`itemList.sumDescPattern`, `RuleValidator` 아이템리스트 점검·복합형 부가정보 필수, `PromptBuilder` 폼 문맥에 아이템리스트(본문 앞), 생성 지침 4·5장 유형 선택 규칙, 서비스의 범위 밖 처리(`keepFormTypes`·`checkedAsInScope`) 삭제, 가짜 LLM "아이템"·"채널"·"이미지" 규칙과 다듬기 시 폼 유형 유지. 커밋 `d04a4d7`, push 완료.
+   - Task 8(화면) 완료(2026-11-19): `index.html` — `draftItem()` 추가, `applyDraft`는 ITEM_LIST면 초안 아이템리스트로 채움, `applyPolish`는 범위 밖 유형 유지 로직 삭제·유형과 아이템리스트 반영(버튼·이미지·채널 유지), 이미지형 초안 말풍선에 `.chat-image-note` "이미지는 폼에서 올려 주세요."(새로 만들기는 항상, 다듬기는 이미지 없을 때만), `formSnapshot`에 `item`(200자·10개) + 아이템리스트 변수 예시값, 범위 안내 문구 변경, 새로 만들기 적용 안내를 "버튼·이미지 파일은 직접 설정"으로. `verify.html` 새 항목 8개(`polishAppliesDraftItemValues` 포함)·기존 4개 수정(`polishViolationApplyAnywayKeepsButtonsAndItemList`는 다듬기 결과 유형 반영 기준으로 기대값 변경). 스크린샷 `build/mockups/task8-item.png`·`task8-image.png`(git 제외).
+   - 남은 우려(Task 9 리뷰 때 확인): 화면 적용은 항목 수 상한을 `/api/rules` 값으로, 챗봇 전송은 10개 상수로 자름(규칙 max가 바뀌면 어긋남) / 초안 아이템리스트가 화면 글자 수를 넘어도 그대로 채움(초과 표시만) / 다듬기 결과가 폼 유형을 바꿀 수 있음 — 실제 Claude가 함부로 바꾸지 않는지 확인 필요.
    - 그다음 Task 9: code-reviewer 전체 검토 → run-guide(5장 13·14번, 6장 5번 기대 결과 변경, 시나리오 8~10 추가) → 실제 Claude로 시나리오 5·8·9·10 확인(비용 발생, 승인 후). → Task 9(code-reviewer, run-guide 5장 13·14번·6장 5번 기대 결과 변경 + 시나리오 8~10 추가, 실제 확인). 확장 후 시나리오 5·8·9·10만 실제로 다시 확인하면 됨(1~4·6·7은 영향 없음).
 3. 실제 호출 테스트(`ClaudeLlmClientLiveTest`) 수정 여부 결정 — "주문 관련 메시지 세팅해줘"에 ASK가 와서 OK 기대가 실패(키·호출은 정상). 선택지: 요청 문장을 구체적으로 / ASK 기대 / 둘 다. run-guide 1장 4단계 "BUILD SUCCESSFUL이면 정상" 안내와 어긋남.
 4. 사용량 정책 결정(미결정 사항 참고).

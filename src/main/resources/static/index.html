@@ -201,6 +201,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
 .chat-act.main{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
 .chat-start:disabled,.chat-choice:disabled,.chat-act:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(1)}
 .chat-start:focus-visible,.chat-choice:focus-visible,.chat-act:focus-visible,.chat-fab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chat-image-note{margin-top:6px;padding:5px 9px;border-radius:6px;background:var(--surface);border:1px dashed var(--line-strong);font-size:12px;color:var(--fg-2);white-space:normal}
 .chat-scope{font-size:11.5px;color:var(--fg-3);line-height:1.5}
 .chat-loading{padding:6px 16px;font-size:12px;color:var(--fg-2);border-top:1px solid var(--line);background:var(--surface-2)}
 .chat-limit{padding:8px 16px;font-size:12px;line-height:1.5;color:var(--fg-2);border-top:1px solid var(--line);background:var(--surface-2)}
@@ -721,13 +722,24 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
   let baseline = formJson(SAMPLE);
   function formEdited(){ return formJson(state) !== baseline; }
 
-  /* 새로 만들기: 폼이 수정됐으면 확인 후 덮어쓰고, 버튼·아이템리스트·이미지는 비운다 */
+  /* 초안의 아이템리스트(draft.item)를 폼 모양으로 정리한다. 아이템리스트형이 아니거나 값이 없으면 null */
+  function draftItem(draft){
+    const it = draft && draft.emph === "ITEM_LIST" ? draft.item : null;
+    if (!it || typeof it !== "object") return null;
+    const str = v => v == null ? "" : String(v);
+    const list = (Array.isArray(it.list) ? it.list : []).slice(0, LIMIT.itemsMax)
+      .map(r => ({ name: str(r && r.name), desc: str(r && r.desc) }));
+    while (list.length < LIMIT.itemsMin) list.push({ name: "", desc: "" });
+    return { header: str(it.header), hlTitle: str(it.hlTitle), hlDesc: str(it.hlDesc), list, sumName: str(it.sumName), sumDesc: str(it.sumDesc) };
+  }
+
+  /* 새로 만들기: 폼이 수정됐으면 확인 후 덮어쓴다. 아이템리스트는 초안 값(아이템리스트형일 때)으로, 버튼·이미지는 비운다 */
   function applyDraft(draft){
     if (formEdited() && !confirm("현재 입력한 내용을 덮어씁니다. 계속할까요?")) return false;
     for (const k of FORM_KEYS){
       if (k === "samples") state.samples = { ...(draft.samples || {}) };
       else if (k === "buttons") state.buttons = [];
-      else if (k === "item") state.item = emptyItem();
+      else if (k === "item") state.item = draftItem(draft) || emptyItem();
       else if (k === "security") state.security = !!draft.security;
       else state[k] = draft[k] == null ? "" : String(draft[k]);
     }
@@ -737,15 +749,14 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
     return true;
   }
 
-  /* 다듬기: 텍스트 항목·예시값만 바꾸고 버튼·아이템리스트·이미지·채널은 그대로 둔다.
-     자동 작성 범위 밖 유형(채널추가형·복합형, 이미지형·아이템리스트형)은 폼 값을 유지한다. */
+  /* 다듬기: 텍스트 항목·유형·예시값을 초안대로 바꾸고, 아이템리스트형 초안이면 아이템리스트도 반영한다.
+     버튼·이미지·채널은 그대로 두고, 아이템리스트형이 아닌 초안이면 폼의 아이템리스트 값도 그대로 둔다. */
   const POLISH_KEYS = ["category", "name", "code", "msgType", "emph", "title", "sub", "content", "extra", "security", "samples"];
   function applyPolish(draft){
     const untouched = !formEdited();  // 적용 전에 사용자가 고친 게 없을 때만 기준을 옮긴다
-    const keepMsgType = state.msgType === "AD" || state.msgType === "MI";
-    const keepEmph = state.emph === "IMAGE" || state.emph === "ITEM_LIST";
+    const item = draftItem(draft);
+    if (item) state.item = item;
     for (const k of POLISH_KEYS){
-      if ((k === "msgType" && keepMsgType) || (k === "emph" && keepEmph)) continue;
       if (k === "samples") state.samples = { ...state.samples, ...(draft.samples || {}) };  // 버튼·아이템리스트에만 쓰인 변수 예시값 유지
       else if (k === "security") state.security = !!draft.security;
       else state[k] = draft[k] == null ? "" : String(draft[k]);
@@ -760,7 +771,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
   const CHAT_USER_MAX = 10;   // 서버는 messages 최대 20개(마지막 user) → 사용자 발화 최대 10번
   const START_ITEMS = ["주문 완료", "주문 취소", "배송 시작", "예약 확정", "회원가입", "인증번호"];
   const POLISH_SAY = "지금 폼을 다듬어줘";
-  const SCOPE_HTML = "자동 작성은 메시지 유형 <b>기본형·부가정보형</b>, 강조 유형 <b>선택 안 함·강조 표기형</b>만 채웁니다. 채널추가형·복합형, 이미지형·아이템리스트형 강조, 버튼은 폼에서 직접 설정해 주세요.";
+  const SCOPE_HTML = "자동 작성은 <b>모든 메시지·강조 유형</b>을 채웁니다. 채널 추가·아이템리스트·이미지형은 요청할 때만 쓰며, 이미지 파일과 버튼은 폼에서 직접 설정해 주세요.";
 
   let chatHistory = [];       // [{role, text, kind?}] 서버에 보내는 대화 기록
   let chatBusy = false;
@@ -774,6 +785,8 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
   const CHAT_FORM_LIMIT = { longText: 2000, text: 200, samples: 60, sampleKey: 100, sampleVal: 100 };
   const CHAT_LONG_KEYS = ["content", "extra"];
   const CHAT_VAR_KEYS = ["name", "title", "sub", "content", "extra"];  // 예시값을 보낼 변수를 찾는 칸
+  const CHAT_ITEM_KEYS = ["header", "hlTitle", "hlDesc", "sumName", "sumDesc"];
+  const CHAT_ITEM_MAX = 10;   // 서버 item.list 최대 개수
   /* UTF-16 길이(서버 String.length와 같은 기준)로 자르고, 끝에 반쪽 남은 이모지 등은 버린다 */
   function clip(s, max){
     if (s.length <= max) return s;
@@ -789,11 +802,19 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
       f[k] = clip(String(state[k] == null ? "" : state[k]), max);
     }
     f.security = !!state.security;
-    /* 예시값: 보내는 텍스트 칸에 실제 쓰인 변수만, 60개까지 */
+    /* 아이템리스트: 각 칸 200자, 항목 10개까지 */
+    const it = state.item || {};
+    const t = v => clip(String(v == null ? "" : v), CHAT_FORM_LIMIT.text);
+    f.item = {};
+    for (const k of CHAT_ITEM_KEYS) f.item[k] = t(it[k]);
+    f.item.list = (Array.isArray(it.list) ? it.list : []).slice(0, CHAT_ITEM_MAX).map(r => ({ name: t(r && r.name), desc: t(r && r.desc) }));
+    /* 예시값: 보내는 텍스트 칸(아이템리스트 포함)에 실제 쓰인 변수만, 60개까지 */
+    const varSrcs = CHAT_VAR_KEYS.map(k => f[k])
+      .concat([f.item.header, f.item.hlTitle, f.item.hlDesc], f.item.list.map(r => r.desc), [f.item.sumDesc]);
     const samples = {};
     let n = 0;
-    for (const k of CHAT_VAR_KEYS){
-      for (const v of varsIn(f[k])){
+    for (const src of varSrcs){
+      for (const v of varsIn(src)){
         if (n >= CHAT_FORM_LIMIT.samples) break;
         if (Object.hasOwn(samples, v) || v.length > CHAT_FORM_LIMIT.sampleKey || !Object.hasOwn(state.samples, v)) continue;
         samples[v] = clip(String(state.samples[v] == null ? "" : state.samples[v]), CHAT_FORM_LIMIT.sampleVal);
@@ -973,7 +994,7 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
         const applied = applyDraft(draft);
         html += issuesHtml([], warnings);
         if (applied){
-          html += `\n<span class="chat-note">폼에 채웠습니다. 버튼·이미지·아이템리스트는 직접 설정해 주세요.</span>`;
+          html += `\n<span class="chat-note">폼에 채웠습니다. 버튼·이미지 파일은 직접 설정해 주세요.</span>`;
         } else {
           html += `\n<span class="chat-note">덮어쓰기를 취소했습니다. 결과는 보관해 두었으니 [폼에 채우기]로 다시 채울 수 있습니다.</span>`;
           acts.appendChild(makeBtn("chat-act main chat-apply-later", "폼에 채우기", () => {
@@ -981,6 +1002,10 @@ pre.code{margin:0;padding:14px;font-family:var(--font-mono);font-size:12px;line-
           }));
         }
       }
+    }
+    /* 이미지형 초안인데 이미지가 없으면 안내(새로 만들기는 적용 시 이미지를 비우므로 항상, 다듬기는 이미지형 이미지가 없을 때) */
+    if (kind === "DRAFT" && data.draft && data.draft.emph === "IMAGE" && (data.mode !== "POLISH" || !imageData)){
+      html += `<div class="chat-image-note">이미지는 폼에서 올려 주세요.</div>`;
     }
     bubble.innerHTML = html;
     if (acts.childNodes.length) m.appendChild(acts);
